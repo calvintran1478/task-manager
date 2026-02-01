@@ -319,13 +319,29 @@ main :: proc() {
             value := bufio.scanner_text(&scanner)
 
             // Update task
+            successful_update: bool = ---
             switch key {
                 case "name":
-                    selected_task.name = value
+                    if selected_task.name == value {
+                        successful_update = false
+                    } else {
+                        selected_task.name = value
+                        successful_update = true
+                    }
                 case "status":
-                    selected_task.status = value
+                    if value != "Not Started" && value != "In Progress" && value != "Complete" {
+                        fmt.println("Invalid status. Supported values are: \"Not Started\", \"In Progress\", and \"Complete\"")
+                        successful_update = false
+                    } else if selected_task.status == value {
+                        successful_update = false
+                    } else {
+                        selected_task.status = value
+                        successful_update = true
+                    }
                 case "category":
-                    if value != selected_category {
+                    if value == selected_category {
+                        successful_update = false
+                    } else {
                         // Check if the category exists
                         index, found := slice.binary_search(categories[:], value)
                         if !found {
@@ -344,15 +360,24 @@ main :: proc() {
                         } else {
                             ordered_remove(&tasks[selected_category], selected_task_index)
                         }
+
+                        successful_update = true
                     }
                 case "due_date":
-                    selected_task.due_date = value
+                    if selected_task.due_date == value {
+                        successful_update = false
+                    } else {
+                        selected_task.due_date = value
+                        successful_update = true
+                    }
                 case:
                     fmt.println("Invalid key")
-                    os.exit(1)
+                    successful_update = false
             }
 
-            changed = true
+            if successful_update {
+                changed = true
+            }
         case "delete":
             // Display categories
             index := 0
@@ -452,9 +477,10 @@ main :: proc() {
             }
 
             // Update task
-            selected_tasks[selected_index].status = "In Progress"
-
-            changed = true
+            if selected_tasks[selected_index].status != "In Progress" {
+                selected_tasks[selected_index].status = "In Progress"
+                changed = true
+            }
         case "check":
             // Display categories
             index := 0
@@ -499,9 +525,10 @@ main :: proc() {
             }
 
             // Update task
-            selected_tasks[selected_index].status = "Complete"
-
-            changed = true
+            if selected_tasks[selected_index].status != "Complete" {
+                selected_tasks[selected_index].status = "Complete"
+                changed = true
+            }
         case "save":
             // Write changes
             if changed {
