@@ -321,58 +321,58 @@ main :: proc() {
             // Update task
             successful_update: bool = ---
             switch key {
-                case "name":
-                    if selected_task.name == value {
-                        successful_update = false
-                    } else {
-                        selected_task.name = value
-                        successful_update = true
-                    }
-                case "status":
-                    if value != "Not Started" && value != "In Progress" && value != "Complete" {
-                        fmt.println("Invalid status. Supported values are: \"Not Started\", \"In Progress\", and \"Complete\"")
-                        successful_update = false
-                    } else if selected_task.status == value {
-                        successful_update = false
-                    } else {
-                        selected_task.status = value
-                        successful_update = true
-                    }
-                case "category":
-                    if value == selected_category {
-                        successful_update = false
-                    } else {
-                        // Check if the category exists
-                        index, found := slice.binary_search(categories[:], value)
-                        if !found {
-                            inject_at(&categories, index, value)
-                            tasks[value] = make([dynamic]Task)
-                        }
-
-                        // Add task to its new category
-                        append(&tasks[value], selected_task^)
-
-                        // Delete task entry from original category
-                        if len(tasks[selected_category]) == 1 {
-                            ordered_remove(&categories, selected_category_index)
-                            delete(tasks[selected_category])
-                            delete_key(&tasks, selected_category)
-                        } else {
-                            ordered_remove(&tasks[selected_category], selected_task_index)
-                        }
-
-                        successful_update = true
-                    }
-                case "due_date":
-                    if selected_task.due_date == value {
-                        successful_update = false
-                    } else {
-                        selected_task.due_date = value
-                        successful_update = true
-                    }
-                case:
-                    fmt.println("Invalid key")
+            case "name":
+                if selected_task.name == value {
                     successful_update = false
+                } else {
+                    selected_task.name = value
+                    successful_update = true
+                }
+            case "status":
+                if value != "Not Started" && value != "In Progress" && value != "Complete" {
+                    fmt.println("Invalid status. Supported values are: \"Not Started\", \"In Progress\", and \"Complete\"")
+                    successful_update = false
+                } else if selected_task.status == value {
+                    successful_update = false
+                } else {
+                    selected_task.status = value
+                    successful_update = true
+                }
+            case "category":
+                if value == selected_category {
+                    successful_update = false
+                } else {
+                    // Check if the category exists
+                    index, found := slice.binary_search(categories[:], value)
+                    if !found {
+                        inject_at(&categories, index, value)
+                        tasks[value] = make([dynamic]Task)
+                    }
+
+                    // Add task to its new category
+                    append(&tasks[value], selected_task^)
+
+                    // Delete task entry from original category
+                    if len(tasks[selected_category]) == 1 {
+                        ordered_remove(&categories, selected_category_index)
+                        delete(tasks[selected_category])
+                        delete_key(&tasks, selected_category)
+                    } else {
+                        ordered_remove(&tasks[selected_category], selected_task_index)
+                    }
+
+                    successful_update = true
+                }
+            case "due_date":
+                if selected_task.due_date == value {
+                    successful_update = false
+                } else {
+                    selected_task.due_date = value
+                    successful_update = true
+                }
+            case:
+                fmt.println("Invalid key")
+                successful_update = false
             }
 
             if successful_update {
