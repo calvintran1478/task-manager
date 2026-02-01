@@ -12,11 +12,9 @@ import "core:os"
 Task :: struct {
     name: string,
     status: string,
-    category: string,
     due_date: string
 }
 
-NUM_TASK_FIELDS :: 4
 DATA_FILE :: ""
 
 /*
@@ -96,14 +94,13 @@ read_tasks :: proc(filename: string) -> (map[string][dynamic]Task, []byte) {
         task := Task{
             name=name,
             status=status,
-            category=category,
             due_date=due_date,
         }
 
-        if !(task.category in tasks) {
-            tasks[task.category] = make([dynamic]Task)
+        if !(category in tasks) {
+            tasks[category] = make([dynamic]Task)
         }
-        append(&tasks[task.category], task)
+        append(&tasks[category], task)
     }
 
     return tasks, arena_buffer
@@ -128,12 +125,12 @@ save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task) {
     csv.writer_init(&csv_writer, os.stream_from_handle(file))
 
     // Write tasks
-    task_buffer: [NUM_TASK_FIELDS]string
+    task_buffer: [4]string
     for category in tasks {
         for task in tasks[category] {
             task_buffer[0] = task.name
             task_buffer[1] = encode_status(task.status)
-            task_buffer[2] = task.category
+            task_buffer[2] = category
             task_buffer[3] = task.due_date
 
             err := csv.write(&csv_writer, task_buffer[:])
@@ -255,7 +252,6 @@ main :: proc() {
             task := Task{
                 name=name,
                 status="Not Started",
-                category=category,
                 due_date=due_date
             }
             append(&tasks[category], task)
@@ -338,13 +334,7 @@ main :: proc() {
                         }
 
                         // Add task to its new category
-                        updated_task := Task{
-                            name=selected_task.name,
-                            status=selected_task.status,
-                            category=value,
-                            due_date=selected_task.due_date
-                        }
-                        append(&tasks[value], updated_task)
+                        append(&tasks[value], selected_task^)
 
                         // Delete task entry from original category
                         if len(tasks[selected_category]) == 1 {
