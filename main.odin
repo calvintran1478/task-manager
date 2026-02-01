@@ -5,6 +5,7 @@ import "core:mem"
 import "core:encoding/csv"
 import "core:strings"
 import "core:strconv"
+import "core:slice"
 import "core:bufio"
 import "core:os"
 
@@ -154,8 +155,8 @@ save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task) {
 /*
  * Display tasks from each category
  */
-show :: proc(tasks: map[string][dynamic]Task) {
-    for category in tasks {
+show :: proc(tasks: map[string][dynamic]Task, categories: [dynamic]string) {
+    for category in categories {
         fmt.printfln("--- %s ---", category)
         for task in tasks[category] {
             if task.due_date == "" {
@@ -198,13 +199,14 @@ main :: proc() {
     for category in tasks {
         append(&categories, category)
     }
+    slice.sort(categories[:])
 
     // Start application
     fmt.println("=== Task Manager ===")
 
     // Check for quick show command
     if len(os.args) == 2 {
-        show(tasks)
+        show(tasks, categories)
         os.exit(0)
     }
 
@@ -221,7 +223,7 @@ main :: proc() {
         // Execute command
         switch command {
         case "show":
-            show(tasks)
+            show(tasks, categories)
         case "add":
             // Get task fields from user input
             fmt.print("Name: ")
@@ -242,17 +244,19 @@ main :: proc() {
             }
             due_date := bufio.scanner_text(&scanner)
 
-            // Create task
+            // Create new category if needed
+            index, found := slice.binary_search(categories[:], category)
+            if !found {
+                inject_at(&categories, index, category)
+                tasks[category] = make([dynamic]Task)
+            }
+
+            // Add task
             task := Task{
                 name=name,
                 status="Not Started",
                 category=category,
                 due_date=due_date
-            }
-
-            // Add task to existing data
-            if len(tasks[category]) == 0 {
-                tasks[category] = make([dynamic]Task)
             }
             append(&tasks[category], task)
 
@@ -260,7 +264,7 @@ main :: proc() {
         case "update":
             // Display categories
             index := 0
-            for category in tasks {
+            for category in categories {
                 fmt.println(index, category)
                 index += 1
             }
@@ -270,16 +274,19 @@ main :: proc() {
             if !bufio.scanner_scan(&scanner) {
                 break
             }
-            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(categories) {
+            selected_category_index: int = ---
+            valid: bool = ---
+            selected_category_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_category_index >= len(categories) {
                 fmt.eprintln("Invalid index")
                 os.exit(1)
             }
-            selected_tasks := tasks[categories[selected_index]]
+            selected_category := categories[selected_category_index]
+            selected_tasks := tasks[selected_category]
 
             // Display task options
             index = 0
-            fmt.printfln("--- %s ---", categories[selected_index])
+            fmt.printfln("--- %s ---", selected_category)
             for task in selected_tasks {
                 if task.due_date == "" {
                     fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
@@ -294,12 +301,13 @@ main :: proc() {
             if !bufio.scanner_scan(&scanner) {
                 break
             }
-            selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(selected_tasks) {
+            selected_task_index: int = ---
+            selected_task_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_task_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
                 os.exit(1)
             }
-            selected_task := &selected_tasks[selected_index]
+            selected_task := &selected_tasks[selected_task_index]
 
             // Get user update values
             fmt.print("key: ")
@@ -321,7 +329,32 @@ main :: proc() {
                 case "status":
                     selected_task.status = value
                 case "category":
-                    selected_task.category = value
+                    if value != selected_category {
+                        // Check if the category exists
+                        index, found := slice.binary_search(categories[:], value)
+                        if !found {
+                            inject_at(&categories, index, value)
+                            tasks[value] = make([dynamic]Task)
+                        }
+
+                        // Add task to its new category
+                        updated_task := Task{
+                            name=selected_task.name,
+                            status=selected_task.status,
+                            category=value,
+                            due_date=selected_task.due_date
+                        }
+                        append(&tasks[value], updated_task)
+
+                        // Delete task entry from original category
+                        if len(tasks[selected_category]) == 1 {
+                            ordered_remove(&categories, selected_category_index)
+                            delete(tasks[selected_category])
+                            delete_key(&tasks, selected_category)
+                        } else {
+                            ordered_remove(&tasks[selected_category], selected_task_index)
+                        }
+                    }
                 case "due_date":
                     selected_task.due_date = value
                 case:
@@ -333,7 +366,7 @@ main :: proc() {
         case "delete":
             // Display categories
             index := 0
-            for category in tasks {
+            for category in categories {
                 fmt.println(index, category)
                 index += 1
             }
@@ -343,17 +376,19 @@ main :: proc() {
             if !bufio.scanner_scan(&scanner) {
                 break
             }
-            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(categories) {
+            valid: bool = ---
+            selected_category_index: int = ---
+            selected_category_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_category_index >= len(categories) {
                 fmt.eprintln("Invalid index")
                 os.exit(1)
             }
-            selected_category := categories[selected_index]
+            selected_category := categories[selected_category_index]
             selected_tasks := tasks[selected_category]
 
             // Display task options
             index = 0
-            fmt.printfln("--- %s ---", categories[selected_index])
+            fmt.printfln("--- %s ---", categories[selected_category_index])
             for task in selected_tasks {
                 if task.due_date == "" {
                     fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
@@ -368,23 +403,25 @@ main :: proc() {
             if !bufio.scanner_scan(&scanner) {
                 break
             }
-            selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(selected_tasks) {
+            selected_task_index: int = ---
+            selected_task_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_task_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
                 os.exit(1)
             }
 
             // Delete task
-            ordered_remove(&tasks[selected_category], selected_index)
+            ordered_remove(&tasks[selected_category], selected_task_index)
             if len(tasks[selected_category]) == 0 {
                 delete_key(&tasks, selected_category)
+                ordered_remove(&categories, selected_category_index)
             }
 
             changed = true
         case "start":
             // Display categories
             index := 0
-            for category in tasks {
+            for category in categories {
                 fmt.println(index, category)
                 index += 1
             }
@@ -431,7 +468,7 @@ main :: proc() {
         case "check":
             // Display categories
             index := 0
-            for category in tasks {
+            for category in categories {
                 fmt.println(index, category)
                 index += 1
             }
