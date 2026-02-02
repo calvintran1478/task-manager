@@ -2,7 +2,6 @@ package main
 
 import "core:fmt"
 import "core:mem"
-import "core:encoding/csv"
 import "core:strings"
 import "core:strconv"
 import "core:slice"
@@ -16,17 +15,19 @@ Task :: struct {
 }
 
 DATA_FILE :: ""
+MAX_FIELD_SIZE :: 255
+MAX_CATEGORY_SIZE :: 255
 
 /*
  * Decode status from file input
  */
-decode_status :: proc "contextless" (number: string) -> string {
+decode_status :: proc "contextless" (number: u8) -> string {
     switch number {
-    case "0":
+    case u8(0):
         return "Not Started"
-    case "1":
+    case u8(1):
         return "In Progress"
-    case "2":
+    case u8(2):
         return "Complete"
     case:
         return ""
@@ -36,74 +37,72 @@ decode_status :: proc "contextless" (number: string) -> string {
 /*
  * Encode status for file writing
  */
-encode_status :: proc "contextless" (status: string) -> string {
+encode_status :: proc "contextless" (status: string) -> u8 {
     switch status {
     case "Not Started":
-        return "0"
+        return u8(0)
     case "In Progress":
-        return "1"
+        return u8(1)
     case "Complete":
-        return "2"
+        return u8(2)
     case:
-        return ""
+        return u8(3)
     }
 }
 
 /*
- * Load tasks from CSV file
+ * Load task data
  */
 read_tasks :: proc(filename: string) -> (map[string][dynamic]Task, []byte) {
-    // Open file
-    file, err := os.open(filename, os.O_RDONLY)
-    if err != nil {
+    // Read all file contents into memory
+    data, ok := os.read_entire_file(filename)
+    if !ok {
         fmt.eprintfln("Error opening task file: %v", filename)
         os.exit(1)
     }
-    defer os.close(file)
-
-    // Read file bytes
-    file_size: i64 = ---
-    file_size, err = os.file_size(file)
-    if err != nil {
-        fmt.eprintln("Error reading file size")
-        os.exit(1)
-    }
-
-    // Initialize arena allocator
-    arena: mem.Arena
-    arena_buffer := make([]byte, file_size)
-    mem.arena_init(&arena, arena_buffer)
-    arena_allocator := mem.arena_allocator(&arena)
-
-    // Initialize CSV reader
-    csv_reader: csv.Reader
-    csv_reader.trim_leading_space  = true
-    csv_reader.reuse_record        = true
-    csv_reader.reuse_record_buffer = true
-    csv.reader_init(&csv_reader, os.stream_from_handle(file))
-    defer csv.reader_destroy(&csv_reader)
-
-    // Read tasks
     tasks := make(map[string][dynamic]Task)
-    for row, _ in csv.iterator_next(&csv_reader) {
-        name, _ := strings.clone(row[0], arena_allocator)
-        status := decode_status(row[1])
-        category, _ := strings.clone(row[2], arena_allocator)
-        due_date, _ := strings.clone(row[3], arena_allocator)
 
-        task := Task{
-            name=name,
-            status=status,
-            due_date=due_date,
-        }
+    // Iteratively read category and task entries
+    start_ptr := raw_data(data)
+    curr_ptr := start_ptr
+    for mem.ptr_sub(curr_ptr, start_ptr) != len(data) {
+        // Read number of tasks in current category
+        num_entries := curr_ptr[0]
+        curr_ptr = mem.ptr_offset(curr_ptr, 1)
 
-        if !(category in tasks) {
-            tasks[category] = make([dynamic]Task)
+        // Read category name
+        category_str_len := cast(int) curr_ptr[0]
+        category := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), category_str_len)
+        curr_ptr = mem.ptr_offset(curr_ptr, 1 + category_str_len)
+        tasks[category] = make([dynamic]Task, 0, num_entries)
+
+        // Read tasks in category
+        for i in 0..<num_entries {
+            // Read status
+            status := decode_status(curr_ptr[0])
+            curr_ptr = mem.ptr_offset(curr_ptr, 1)
+
+            // Read name
+            name_length := cast(int) curr_ptr[0]
+            name := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), name_length)
+            curr_ptr = mem.ptr_offset(curr_ptr, 1 + name_length)
+
+            // Read due date
+            due_date_length := cast(int) curr_ptr[0]
+            due_date := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), due_date_length)
+            curr_ptr = mem.ptr_offset(curr_ptr, 1 + due_date_length)
+
+            // Create task
+            task := Task{
+                name=name,
+                status=status,
+                due_date=due_date,
+            }
+            append(&tasks[category], task)
         }
-        append(&tasks[category], task)
     }
 
-    return tasks, arena_buffer
+    return tasks, data
 }
 
 /*
@@ -118,34 +117,28 @@ save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task) {
     }
     defer os.close(file)
 
-    // Initialize CSV writer
-    csv_writer: csv.Writer
-    csv_writer.comma = ','
-    csv_writer.use_crlf = false
-    csv.writer_init(&csv_writer, os.stream_from_handle(file))
-
-    // Write tasks
-    task_buffer: [4]string
+    // Iteratively write category and task entries
     for category in tasks {
+        // Write number of tasks in current category
+        os.write_byte(file, u8(len(tasks[category])))
+
+        // Write category name
+        os.write_byte(file, u8(len(category)))
+        os.write_string(file, category)
+
+        // Write tasks in category
         for task in tasks[category] {
-            task_buffer[0] = task.name
-            task_buffer[1] = encode_status(task.status)
-            task_buffer[2] = category
-            task_buffer[3] = task.due_date
+            // Write status
+            os.write_byte(file, encode_status(task.status))
 
-            err := csv.write(&csv_writer, task_buffer[:])
-            if err != nil {
-                fmt.eprintln("Error saving tasks")
-                os.exit(1)
-            }
+            // Write name
+            os.write_byte(file, u8(len(task.name)))
+            os.write_string(file, task.name)
+
+            // Write due date
+            os.write_byte(file, u8(len(task.due_date)))
+            os.write_string(file, task.due_date)
         }
-    }
-
-    // Check for any final errors
-    err = csv.writer_flush(&csv_writer)
-    if err != nil {
-        fmt.eprintln("Error saving tasks")
-        os.exit(1)
     }
 }
 
@@ -186,12 +179,12 @@ main :: proc() {
     defer free_all(context.temp_allocator)
 
     // Load task data
-    tasks, arena_buffer := read_tasks(DATA_FILE)
+    tasks, data := read_tasks(DATA_FILE)
     defer delete(tasks)
-    defer delete(arena_buffer)
+    defer delete(data)
 
     // Get categories
-    categories: [dynamic]string
+    categories := make([dynamic]string, 0, len(tasks))
     defer delete(categories)
     for category in tasks {
         append(&categories, category)
@@ -228,18 +221,33 @@ main :: proc() {
                 break
             }
             name := bufio.scanner_text(&scanner)
+            if len(name) > MAX_FIELD_SIZE {
+                fmt.eprintln("Name cannot exceed 255 characters")
+                break
+            }
 
             fmt.print("Category: ")
             if !bufio.scanner_scan(&scanner) {
                 break
             }
             category := bufio.scanner_text(&scanner)
+            if len(category) > MAX_FIELD_SIZE {
+                fmt.eprintln("Category cannot exceed 255 characters")
+                break
+            } else if category in tasks && len(tasks[category]) == MAX_CATEGORY_SIZE {
+                fmt.eprintln("A single category cannot store more than 255 tasks")
+                break
+            }
 
             fmt.print("Due Date: ")
             if !bufio.scanner_scan(&scanner) {
                 break
             }
             due_date := bufio.scanner_text(&scanner)
+            if len(due_date) > MAX_FIELD_SIZE {
+                fmt.eprintln("Due date cannot exceed 255 characters")
+                break
+            }
 
             // Create new category if needed
             index, found := slice.binary_search(categories[:], category)
@@ -324,13 +332,16 @@ main :: proc() {
             case "name":
                 if selected_task.name == value {
                     successful_update = false
+                } else if len(value) > MAX_FIELD_SIZE {
+                    fmt.eprintln("Name cannot exceed 255 characters")
+                    successful_update = false
                 } else {
                     selected_task.name = value
                     successful_update = true
                 }
             case "status":
                 if value != "Not Started" && value != "In Progress" && value != "Complete" {
-                    fmt.println("Invalid status. Supported values are: \"Not Started\", \"In Progress\", and \"Complete\"")
+                    fmt.eprintln("Invalid status. Supported values are: \"Not Started\", \"In Progress\", and \"Complete\"")
                     successful_update = false
                 } else if selected_task.status == value {
                     successful_update = false
@@ -340,6 +351,12 @@ main :: proc() {
                 }
             case "category":
                 if value == selected_category {
+                    successful_update = false
+                } else if len(value) > MAX_FIELD_SIZE {
+                    fmt.eprintln("Category cannot exceed 255 characters")
+                    successful_update = false
+                } else if value in tasks && len(tasks[value]) == MAX_CATEGORY_SIZE {
+                    fmt.eprintln("A single category cannot store more than 255 tasks")
                     successful_update = false
                 } else {
                     // Check if the category exists
@@ -365,6 +382,9 @@ main :: proc() {
                 }
             case "due_date":
                 if selected_task.due_date == value {
+                    successful_update = false
+                } else if len(value) > MAX_FIELD_SIZE {
+                    fmt.eprintln("Due date cannot exceed 255 characters")
                     successful_update = false
                 } else {
                     selected_task.due_date = value

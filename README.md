@@ -16,7 +16,7 @@ git clone https://github.com/calvintran1478/task-manager.git
 ```
 Open the main.odin file and change DATA_FILE to an absolute path where you want the data to be stored. If there is no particular preference, the standard choice is to write:
 ```
-DATA_FILE :: "<$HOME>./local/share/tm/tasks.csv"
+DATA_FILE :: "<$HOME>/.local/share/tm/data.bin"
 ```
 where `<$HOME>` is replaced with your home directory. Create an empty file at the chosen path if there is not one already.
 
