@@ -213,7 +213,7 @@ main :: proc() {
         // Read command from user input
         fmt.print("> ")
         if !bufio.scanner_scan(&scanner) {
-            break outer
+            break
         }
         command := bufio.scanner_text(&scanner)
 
@@ -225,19 +225,19 @@ main :: proc() {
             // Get task fields from user input
             fmt.print("Name: ")
             if !bufio.scanner_scan(&scanner) {
-                break outer
+                break
             }
             name := bufio.scanner_text(&scanner)
 
             fmt.print("Category: ")
             if !bufio.scanner_scan(&scanner) {
-                break outer
+                break
             }
             category := bufio.scanner_text(&scanner)
 
             fmt.print("Due Date: ")
             if !bufio.scanner_scan(&scanner) {
-                break outer
+                break
             }
             due_date := bufio.scanner_text(&scanner)
 
@@ -275,7 +275,7 @@ main :: proc() {
             selected_category_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_category_index >= len(categories) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
             selected_category := categories[selected_category_index]
             selected_tasks := tasks[selected_category]
@@ -301,7 +301,7 @@ main :: proc() {
             selected_task_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_task_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
             selected_task := &selected_tasks[selected_task_index]
 
@@ -396,7 +396,7 @@ main :: proc() {
             selected_category_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_category_index >= len(categories) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
             selected_category := categories[selected_category_index]
             selected_tasks := tasks[selected_category]
@@ -422,7 +422,7 @@ main :: proc() {
             selected_task_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_task_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
 
             // Delete task
@@ -449,7 +449,7 @@ main :: proc() {
             selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_index >= len(categories) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
             selected_tasks := tasks[categories[selected_index]]
 
@@ -473,7 +473,7 @@ main :: proc() {
             selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
 
             // Update task
@@ -497,7 +497,7 @@ main :: proc() {
             selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_index >= len(categories) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
             selected_tasks := tasks[categories[selected_index]]
 
@@ -521,7 +521,7 @@ main :: proc() {
             selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
             if !valid || selected_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
-                os.exit(1)
+                break
             }
 
             // Update task
