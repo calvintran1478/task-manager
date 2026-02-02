@@ -364,6 +364,9 @@ main :: proc() {
                     if !found {
                         inject_at(&categories, index, value)
                         tasks[value] = make([dynamic]Task)
+                        if index < selected_category_index {
+                            selected_category_index += 1
+                        }
                     }
 
                     // Add task to its new category
