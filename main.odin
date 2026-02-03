@@ -74,7 +74,10 @@ read_tasks :: proc(filename: string) -> (map[string][dynamic]Task, []byte) {
         category_str_len := cast(int) curr_ptr[0]
         category := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), category_str_len)
         curr_ptr = mem.ptr_offset(curr_ptr, 1 + category_str_len)
-        tasks[category] = make([dynamic]Task, 0, num_entries)
+
+        // Allocate memory for task entries
+        tasks[category] = make([dynamic]Task, num_entries)
+        category_tasks := &tasks[category]
 
         // Read tasks in category
         for i in 0..<num_entries {
@@ -98,7 +101,7 @@ read_tasks :: proc(filename: string) -> (map[string][dynamic]Task, []byte) {
                 status=status,
                 due_date=due_date,
             }
-            append(&tasks[category], task)
+            category_tasks[i] = task
         }
     }
 
@@ -184,10 +187,12 @@ main :: proc() {
     defer delete(data)
 
     // Get categories
-    categories := make([dynamic]string, 0, len(tasks))
+    categories := make([dynamic]string, len(tasks))
     defer delete(categories)
+    i := 0
     for category in tasks {
-        append(&categories, category)
+        categories[i] = category
+        i += 1
     }
     slice.sort(categories[:])
 
@@ -253,7 +258,7 @@ main :: proc() {
             index, found := slice.binary_search(categories[:], category)
             if !found {
                 inject_at(&categories, index, category)
-                tasks[category] = make([dynamic]Task)
+                tasks[category] = make([dynamic]Task, 0, 1)
             }
 
             // Add task
@@ -363,7 +368,7 @@ main :: proc() {
                     index, found := slice.binary_search(categories[:], value)
                     if !found {
                         inject_at(&categories, index, value)
-                        tasks[value] = make([dynamic]Task)
+                        tasks[value] = make([dynamic]Task, 0, 1)
                         if index < selected_category_index {
                             selected_category_index += 1
                         }
@@ -486,7 +491,7 @@ main :: proc() {
             }
 
             // Select tasks to delete
-            removal_indices: [dynamic]int
+            removal_indices := make([dynamic]int, 0, len(selected_tasks))
             defer delete(removal_indices)
             for {
                 // Get task index
