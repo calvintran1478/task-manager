@@ -650,7 +650,7 @@ main :: proc() {
             if changed {
                 resolved := false
                 for !resolved {
-                    fmt.print("Unsaved changes found. Are you sure you want to quit (y/n): ")
+                    fmt.print("Unsaved changes found. Are you sure you want to quit? (y/n): ")
                     if !bufio.scanner_scan(&scanner) {
                         break
                     }
