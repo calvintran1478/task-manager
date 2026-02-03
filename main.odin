@@ -379,9 +379,9 @@ main :: proc() {
 
                     // Delete task entry from original category
                     if len(tasks[selected_category]) == 1 {
-                        ordered_remove(&categories, selected_category_index)
                         delete(tasks[selected_category])
                         delete_key(&tasks, selected_category)
+                        ordered_remove(&categories, selected_category_index)
                     } else {
                         ordered_remove(&tasks[selected_category], selected_task_index)
                     }
@@ -456,6 +456,7 @@ main :: proc() {
             // Delete task
             ordered_remove(&tasks[selected_category], selected_task_index)
             if len(tasks[selected_category]) == 0 {
+                delete(tasks[selected_category])
                 delete_key(&tasks, selected_category)
                 ordered_remove(&categories, selected_category_index)
             }
@@ -535,6 +536,7 @@ main :: proc() {
 
                 // Delete category if no tasks remain
                 if len(tasks[selected_category]) == 0 {
+                    delete(tasks[selected_category])
                     delete_key(&tasks, selected_category)
                     ordered_remove(&categories, selected_category_index)
                 }
