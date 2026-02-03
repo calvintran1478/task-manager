@@ -492,8 +492,8 @@ main :: proc() {
             }
 
             // Select tasks to delete
-            removal_indices := make([dynamic]int, 0, len(selected_tasks))
-            defer delete(removal_indices)
+            removal_indices_buffer: [MAX_CATEGORY_SIZE]int = ---
+            removal_indices := mem.buffer_from_slice(removal_indices_buffer[:])
             for {
                 // Get task index
                 fmt.print("Enter index: ")
