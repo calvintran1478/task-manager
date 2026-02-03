@@ -28,7 +28,7 @@ You can now start the application by running
 ```bash
 tm
 ```
-This will start an interactive session where you can run commands. The supported list of commands are: `show`, `add`, `update`, `delete`, `start`, `check`, `save`, and `quit`.
+This will start an interactive session where you can run commands. The supported list of commands are: `show`, `add`, `update`, `delete`, `start`, `check`, `save`, and `quit`. The supported list of bulk commands are: `delete many`.
 
 At this point you can freely delete the source file. To quickly display tasks without starting a session you can run
 ```bash

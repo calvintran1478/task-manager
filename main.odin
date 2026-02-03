@@ -456,6 +456,86 @@ main :: proc() {
             }
 
             changed = true
+        case "delete many":
+            // Display categories
+            for category, index in categories {
+                fmt.println(index, category)
+            }
+
+            // Get tasks from a specific category
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_category_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_category_index >= len(categories) {
+                fmt.eprintln("Invalid index")
+                break
+            }
+            selected_category := categories[selected_category_index]
+            selected_tasks := tasks[selected_category]
+
+            // Display task options
+            fmt.printfln("--- %s ---", selected_category)
+            for task, index in selected_tasks {
+                if task.due_date == "" {
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                } else {
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                }
+            }
+
+            // Select tasks to delete
+            removal_indices: [dynamic]int
+            defer delete(removal_indices)
+            for {
+                // Get task index
+                fmt.print("Enter index: ")
+                if !bufio.scanner_scan(&scanner) {
+                    break
+                }
+                value := bufio.scanner_text(&scanner)
+
+                // Check for termination
+                if value == "done" {
+                    break
+                }
+
+                // Validate index value
+                selected_task_index, valid := strconv.parse_int(value)
+                if !valid || selected_task_index >= len(selected_tasks) {
+                    fmt.eprintln("Invalid index")
+                    clear(&removal_indices)
+                    break
+                }
+
+                // Validate uniqueness
+                insertion_index, found := slice.binary_search(removal_indices[:], selected_task_index)
+                if found {
+                    fmt.eprintln("Duplicate index detected")
+                    clear(&removal_indices)
+                    break
+                }
+
+                // Add task index for removal
+                inject_at(&removal_indices, insertion_index, selected_task_index)
+            }
+
+            // If provided indices are valid start removing
+            if len(removal_indices) > 0 {
+                // Remove tasks from category
+                #reverse for index in removal_indices {
+                    ordered_remove(&tasks[selected_category], index)
+                }
+
+                // Delete category if no tasks remain
+                if len(tasks[selected_category]) == 0 {
+                    delete_key(&tasks, selected_category)
+                    ordered_remove(&categories, selected_category_index)
+                }
+
+                changed = true
+            }
         case "start":
             // Display categories
             index := 0
