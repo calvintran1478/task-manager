@@ -17,6 +17,7 @@ Task :: struct {
 DATA_FILE :: ""
 MAX_FIELD_SIZE :: 255
 MAX_CATEGORY_SIZE :: 255
+MAX_NUM_CATEGORIES :: 50
 
 /*
  * Decode status from file input
@@ -187,12 +188,10 @@ main :: proc() {
     defer delete(data)
 
     // Get categories
-    categories := make([dynamic]string, len(tasks))
-    defer delete(categories)
-    i := 0
+    category_buffer: [MAX_NUM_CATEGORIES]string = ---
+    categories := mem.buffer_from_slice(category_buffer[:])
     for category in tasks {
-        categories[i] = category
-        i += 1
+        append(&categories, category)
     }
     slice.sort(categories[:])
 
@@ -241,6 +240,9 @@ main :: proc() {
                 break
             } else if category in tasks && len(tasks[category]) == MAX_CATEGORY_SIZE {
                 fmt.eprintln("A single category cannot store more than 255 tasks")
+                break
+            } else if !(category in tasks) && len(categories) == MAX_NUM_CATEGORIES {
+                fmt.eprintln("Cannot have more than 50 categories")
                 break
             }
 
@@ -363,6 +365,9 @@ main :: proc() {
                 } else if value in tasks && len(tasks[value]) == MAX_CATEGORY_SIZE {
                     fmt.eprintln("A single category cannot store more than 255 tasks")
                     successful_update = false
+                } else if !(value in tasks) && len(categories) == MAX_NUM_CATEGORIES {
+                    fmt.eprintln("Cannot have more than 50 categories")
+                    break
                 } else {
                     // Check if the category exists
                     index, found := slice.binary_search(categories[:], value)
