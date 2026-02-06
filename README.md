@@ -22,7 +22,7 @@ where `<$HOME>` is replaced with your home directory. Create an empty file at th
 
 Finally, compile the source code into a globally executable binary.
 ```bash
-sudo odin build ./task-manager -out:/usr/local/bin/tm -o:speed -no-bounds-check
+odin build . -out:$HOME/.local/bin/tm -o:speed -no-bounds-check
 ```
 You can now start the application by running
 ```bash
