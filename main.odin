@@ -168,24 +168,95 @@ show :: proc(tasks: map[string][dynamic]Task, categories: [dynamic]string) {
  */
 main :: proc() {
     // Check for CLI arguments
-    if len(os.args) > 2 {
-        fmt.eprintln("Too many arguments")
-        os.exit(1)
-    } else if len(os.args) == 2 && os.args[1] != "show" {
-        fmt.eprintln("Invalid command given")
-        os.exit(1)
+    quick_add := len(os.args) == 2 && os.args[1] == "add"
+    if !quick_add {
+        if len(os.args) > 2 {
+            fmt.eprintln("Too many arguments")
+            os.exit(1)
+        } else if len(os.args) == 2 && os.args[1] != "show" {
+            fmt.eprintln("Invalid command given")
+            os.exit(1)
+        }
     }
 
     // Set up input scanner
     scanner: bufio.Scanner
     stdin := os.stream_from_handle(os.stdin)
     bufio.scanner_init(&scanner, stdin, context.temp_allocator)
-    defer free_all(context.temp_allocator)
+    defer {
+        if err := bufio.scanner_error(&scanner); err != nil {
+            fmt.eprintln("Scanner error:", err)
+        }
+        free_all(context.temp_allocator)
+    }
 
     // Load task data
     tasks, data := read_tasks(DATA_FILE)
-    defer delete(tasks)
-    defer delete(data)
+    defer {
+        for category in tasks {
+            delete(tasks[category])
+        }
+        delete(tasks)
+        delete(data)
+    }
+
+    // Check for quick add
+    if quick_add {
+        // Get task fields from user input
+        fmt.print("Name: ")
+        if !bufio.scanner_scan(&scanner) {
+            os.exit(1)
+        }
+        name := bufio.scanner_text(&scanner)
+        if len(name) > MAX_FIELD_SIZE {
+            fmt.eprintln("Name cannot exceed 255 characters")
+            os.exit(1)
+        }
+
+        fmt.print("Category: ")
+        if !bufio.scanner_scan(&scanner) {
+            os.exit(1)
+        }
+        category := bufio.scanner_text(&scanner)
+        if len(category) > MAX_FIELD_SIZE {
+            fmt.eprintln("Category cannot exceed 255 characters")
+            os.exit(1)
+        } else if category in tasks && len(tasks[category]) == MAX_CATEGORY_SIZE {
+            fmt.eprintln("A single category cannot store more than 255 tasks")
+            os.exit(1)
+        } else if !(category in tasks) && len(tasks) == MAX_NUM_CATEGORIES {
+            fmt.eprintln("Cannot have more than 50 categories")
+            os.exit(1)
+        }
+
+        fmt.print("Due Date: ")
+        if !bufio.scanner_scan(&scanner) {
+            os.exit(1)
+        }
+        due_date := bufio.scanner_text(&scanner)
+        if len(due_date) > MAX_FIELD_SIZE {
+            fmt.eprintln("Due date cannot exceed 255 characters")
+            os.exit(1)
+        }
+
+        // Create new category if needed
+        if !(category in tasks) {
+            tasks[category] = make([dynamic]Task, 0, 1)
+        }
+
+        // Add task
+        task := Task{
+            name=name,
+            status="Not Started",
+            due_date=due_date
+        }
+        append(&tasks[category], task)
+
+        // Save task
+        save_tasks(DATA_FILE, tasks)
+
+        os.exit(0)
+    }
 
     // Get categories
     category_buffer: [MAX_NUM_CATEGORIES]string = ---
@@ -678,13 +749,4 @@ main :: proc() {
         }
     }
 
-    // Check for scanner errors
-    if err := bufio.scanner_error(&scanner); err != nil {
-        fmt.eprintln("Scanner error:", err)
-    }
-
-    // Free task data
-    for category in tasks {
-        delete(tasks[category])
-    }
 }

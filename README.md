@@ -34,6 +34,11 @@ At this point you can freely delete the source file. To quickly display tasks wi
 ```bash
 tm show
 ```
+You can also run
+```bash
+tm add
+```
+to quickly add a task without starting a session.
 
 ## Uninstalling
 
