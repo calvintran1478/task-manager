@@ -168,15 +168,9 @@ show :: proc(tasks: map[string][dynamic]Task, categories: [dynamic]string) {
  */
 main :: proc() {
     // Check for CLI arguments
-    quick_add := len(os.args) == 2 && os.args[1] == "add"
-    if !quick_add {
-        if len(os.args) > 2 {
-            fmt.eprintln("Too many arguments")
-            os.exit(1)
-        } else if len(os.args) == 2 && os.args[1] != "show" {
-            fmt.eprintln("Invalid command given")
-            os.exit(1)
-        }
+    if len(os.args) > 2 {
+        fmt.eprintln("Too many arguments")
+        os.exit(1)
     }
 
     // Set up input scanner
@@ -201,7 +195,7 @@ main :: proc() {
     }
 
     // Check for quick add
-    if quick_add {
+    if len(os.args) == 2 && os.args[1] == "add" {
         // Get task fields from user input
         fmt.print("Name: ")
         if !bufio.scanner_scan(&scanner) {
@@ -266,14 +260,72 @@ main :: proc() {
     }
     slice.sort(categories[:])
 
-    // Start application
-    fmt.println("=== Task Manager ===")
-
-    // Check for quick show command
+    // Check for quick commands
     if len(os.args) == 2 {
-        show(tasks, categories)
+        switch os.args[1] {
+        case "show":
+            fmt.println("=== Task Manager ===")
+            show(tasks, categories)
+        case "check":
+            // Display categories
+            fmt.println("=== Task Manager ===")
+            for category, index in categories {
+                fmt.println(index, category)
+            }
+
+            // Get tasks from a specific category
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index >= len(categories) {
+                fmt.eprintln("Invalid index")
+                break
+            }
+            selected_tasks := tasks[categories[selected_index]]
+
+            // Display task options
+            fmt.printfln("--- %s ---", categories[selected_index])
+            for task, index in selected_tasks {
+                if task.due_date == "" {
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                } else {
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                }
+            }
+
+            // Select task to update
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index >= len(selected_tasks) {
+                fmt.eprintln("Invalid index")
+                break
+            }
+
+            // Update task
+            changed := false
+            if selected_tasks[selected_index].status != "Complete" {
+                selected_tasks[selected_index].status = "Complete"
+                changed = true
+            }
+
+            // Save task
+            if changed {
+                save_tasks(DATA_FILE, tasks)
+            }
+        case:
+            fmt.eprintln("Invalid command given")
+            os.exit(1)
+        }
         os.exit(0)
     }
+
+    // Display title
+    fmt.println("=== Task Manager ===")
 
     // Start application loop
     changed := false
