@@ -397,10 +397,8 @@ main :: proc() {
             changed = true
         case "update":
             // Display categories
-            index := 0
-            for category in categories {
+            for category, index in categories {
                 fmt.println(index, category)
-                index += 1
             }
 
             // Get tasks from a specific category
@@ -419,15 +417,13 @@ main :: proc() {
             selected_tasks := tasks[selected_category]
 
             // Display task options
-            index = 0
             fmt.printfln("--- %s ---", selected_category)
-            for task in selected_tasks {
+            for task, index in selected_tasks {
                 if task.due_date == "" {
                     fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
                 } else {
                     fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
                 }
-                index += 1
             }
 
             // Select task to update
@@ -536,10 +532,8 @@ main :: proc() {
             }
         case "delete":
             // Display categories
-            index := 0
-            for category in categories {
+            for category, index in categories {
                 fmt.println(index, category)
-                index += 1
             }
 
             // Get tasks from a specific category
@@ -558,15 +552,13 @@ main :: proc() {
             selected_tasks := tasks[selected_category]
 
             // Display task options
-            index = 0
-            fmt.printfln("--- %s ---", categories[selected_category_index])
-            for task in selected_tasks {
+            fmt.printfln("--- %s ---", selected_category)
+            for task, index in selected_tasks {
                 if task.due_date == "" {
                     fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
                 } else {
                     fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
                 }
-                index += 1
             }
 
             // Select task to delete
@@ -673,10 +665,8 @@ main :: proc() {
             }
         case "start":
             // Display categories
-            index := 0
-            for category in categories {
+            for category, index in categories {
                 fmt.println(index, category)
-                index += 1
             }
 
             // Get tasks from a specific category
@@ -692,15 +682,13 @@ main :: proc() {
             selected_tasks := tasks[categories[selected_index]]
 
             // Display task options
-            index = 0
             fmt.printfln("--- %s ---", categories[selected_index])
-            for task in selected_tasks {
+            for task, index in selected_tasks {
                 if task.due_date == "" {
                     fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
                 } else {
                     fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
                 }
-                index += 1
             }
 
             // Select task to update
@@ -721,10 +709,8 @@ main :: proc() {
             }
         case "check":
             // Display categories
-            index := 0
-            for category in categories {
+            for category, index in categories {
                 fmt.println(index, category)
-                index += 1
             }
 
             // Get tasks from a specific category
@@ -740,15 +726,13 @@ main :: proc() {
             selected_tasks := tasks[categories[selected_index]]
 
             // Display task options
-            index = 0
             fmt.printfln("--- %s ---", categories[selected_index])
-            for task in selected_tasks {
+            for task, index in selected_tasks {
                 if task.due_date == "" {
                     fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
                 } else {
                     fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
                 }
-                index += 1
             }
 
             // Select task to update
@@ -800,5 +784,4 @@ main :: proc() {
             fmt.println("Invalid Command")
         }
     }
-
 }
