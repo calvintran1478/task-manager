@@ -242,19 +242,21 @@ main :: proc() {
                 os.exit(1)
             }
 
-            // Create new category if needed
-            if !found {
-                inject_at(&categories, index, category)
-                inject_at(&tasks, index, make([dynamic]Task, 0, 1))
-            }
-
-            // Add task
+            // Create task
             task := Task{
                 name=name,
                 status="Not Started",
                 due_date=due_date
             }
-            append(&tasks[index], task)
+
+            // Add task under its specified category
+            if found {
+                append(&tasks[index], task)
+            } else {
+                inject_at(&categories, index, category)
+                inject_at(&tasks, index, make([dynamic]Task, 1, 1))
+                tasks[index][0] = task
+            }
 
             // Save task
             save_tasks(DATA_FILE, tasks, categories)
@@ -376,19 +378,21 @@ main :: proc() {
                 break
             }
 
-            // Create new category if needed
-            if !found {
-                inject_at(&categories, index, category)
-                inject_at(&tasks, index, make([dynamic]Task, 0, 1))
-            }
-
-            // Add task
+            // Create task
             task := Task{
                 name=name,
                 status="Not Started",
                 due_date=due_date
             }
-            append(&tasks[index], task)
+
+            // Add task under its specified category
+            if found {
+                append(&tasks[index], task)
+            } else {
+                inject_at(&categories, index, category)
+                inject_at(&tasks, index, make([dynamic]Task, 1, 1))
+                tasks[index][0] = task
+            }
 
             changed = true
         case "update":
