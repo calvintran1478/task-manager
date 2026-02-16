@@ -7,6 +7,7 @@ import "core:strconv"
 import "core:slice"
 import "core:bufio"
 import "core:os"
+import "base:runtime"
 
 Task :: struct {
     name: string,
@@ -52,6 +53,7 @@ read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories:
     // Iteratively read category and task entries
     start_ptr := raw_data(data)
     curr_ptr := start_ptr
+    category_index := 0
     for mem.ptr_sub(curr_ptr, start_ptr) != len(data) {
         // Read number of tasks in current category
         num_entries := curr_ptr[0]
@@ -61,11 +63,12 @@ read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories:
         category_str_len := cast(int) curr_ptr[0]
         category := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), category_str_len)
         curr_ptr = mem.ptr_offset(curr_ptr, 1 + category_str_len)
-        append(categories, category)
+        #no_bounds_check categories^[category_index] = category
 
         // Allocate memory for task entries
         category_tasks := make([dynamic]Task, num_entries)
-        append(tasks, category_tasks)
+        #no_bounds_check tasks^[category_index] = category_tasks
+        category_index += 1
 
         // Read tasks in category
         for i in 0..<num_entries {
@@ -91,6 +94,10 @@ read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories:
             }
         }
     }
+
+    // Set lengths of tasks and categories
+    (^runtime.Raw_Dynamic_Array)(tasks).len = category_index
+    (^runtime.Raw_Dynamic_Array)(categories).len = category_index
 
     return data
 }
