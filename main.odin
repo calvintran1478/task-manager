@@ -84,12 +84,11 @@ read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories:
             curr_ptr = mem.ptr_offset(curr_ptr, 1 + due_date_length)
 
             // Create task
-            task := Task{
+            category_tasks[i] = Task{
                 name=name,
                 status=status,
                 due_date=due_date,
             }
-            category_tasks[i] = task
         }
     }
 
