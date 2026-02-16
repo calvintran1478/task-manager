@@ -10,7 +10,7 @@ import "core:os"
 
 Task :: struct {
     name: string,
-    status: string,
+    status: u8,
     due_date: string
 }
 
@@ -19,21 +19,8 @@ MAX_FIELD_SIZE :: 255
 MAX_CATEGORY_SIZE :: 255
 MAX_NUM_CATEGORIES :: 50
 
-/*
- * Decode status from file input
- */
-decode_status :: proc "contextless" (number: u8) -> string {
-    switch number {
-    case u8(0):
-        return "Not Started"
-    case u8(1):
-        return "In Progress"
-    case u8(2):
-        return "Complete"
-    case:
-        return ""
-    }
-}
+@(rodata)
+status_strings: [3]string = {"Not Started", "In Progress", "Complete"}
 
 /*
  * Encode status for file writing
@@ -83,7 +70,7 @@ read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories:
         // Read tasks in category
         for i in 0..<num_entries {
             // Read status
-            status := decode_status(curr_ptr[0])
+            status := curr_ptr[0]
             curr_ptr = mem.ptr_offset(curr_ptr, 1)
 
             // Read name
@@ -133,7 +120,7 @@ save_tasks :: proc(filename: string, tasks: [dynamic][dynamic]Task, categories: 
         // Write tasks in category
         for task in tasks[i] {
             // Write status
-            os.write_byte(file, encode_status(task.status))
+            os.write_byte(file, task.status)
 
             // Write name
             os.write_byte(file, u8(len(task.name)))
@@ -154,9 +141,9 @@ show :: proc(tasks: [dynamic][dynamic]Task, categories: [dynamic]string) {
         fmt.printfln("--- %s ---", category)
         for task in tasks[i] {
             if task.due_date == "" {
-                fmt.printfln("name: %s, status: %s", task.name, task.status)
+                fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
             } else {
-                fmt.printfln("name: %s, status: %s, due_date: %s", task.name, task.status, task.due_date)
+                fmt.printfln("name: %s, status: %s, due_date: %s", task.name, status_strings[task.status], task.due_date)
             }
         }
         fmt.println()
@@ -245,7 +232,7 @@ main :: proc() {
             // Create task
             task := Task{
                 name=name,
-                status="Not Started",
+                status=u8(0),
                 due_date=due_date
             }
 
@@ -286,9 +273,9 @@ main :: proc() {
             fmt.printfln("--- %s ---", categories[selected_index])
             for task, index in selected_tasks {
                 if task.due_date == "" {
-                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
                 } else {
-                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
                 }
             }
 
@@ -305,8 +292,8 @@ main :: proc() {
 
             // Update task
             changed := false
-            if selected_tasks[selected_index].status != "Complete" {
-                selected_tasks[selected_index].status = "Complete"
+            if selected_tasks[selected_index].status != u8(2) {
+                selected_tasks[selected_index].status = u8(2)
                 changed = true
             }
 
@@ -381,7 +368,7 @@ main :: proc() {
             // Create task
             task := Task{
                 name=name,
-                status="Not Started",
+                status=u8(0),
                 due_date=due_date
             }
 
@@ -420,9 +407,9 @@ main :: proc() {
             fmt.printfln("--- %s ---", selected_category)
             for task, index in selected_tasks {
                 if task.due_date == "" {
-                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
                 } else {
-                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
                 }
             }
 
@@ -469,10 +456,10 @@ main :: proc() {
                 if value != "Not Started" && value != "In Progress" && value != "Complete" {
                     fmt.eprintln("Invalid status. Supported values are: \"Not Started\", \"In Progress\", and \"Complete\"")
                     successful_update = false
-                } else if selected_task.status == value {
+                } else if selected_task.status == encode_status(value) {
                     successful_update = false
                 } else {
-                    selected_task.status = value
+                    selected_task.status = encode_status(value)
                     successful_update = true
                 }
             case "category":
@@ -556,9 +543,9 @@ main :: proc() {
             fmt.printfln("--- %s ---", selected_category)
             for task, index in selected_tasks {
                 if task.due_date == "" {
-                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
                 } else {
-                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
                 }
             }
 
@@ -606,9 +593,9 @@ main :: proc() {
             fmt.printfln("--- %s ---", selected_category)
             for task, index in selected_tasks {
                 if task.due_date == "" {
-                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
                 } else {
-                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
                 }
             }
 
@@ -686,9 +673,9 @@ main :: proc() {
             fmt.printfln("--- %s ---", categories[selected_index])
             for task, index in selected_tasks {
                 if task.due_date == "" {
-                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
                 } else {
-                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
                 }
             }
 
@@ -704,8 +691,8 @@ main :: proc() {
             }
 
             // Update task
-            if selected_tasks[selected_index].status != "In Progress" {
-                selected_tasks[selected_index].status = "In Progress"
+            if selected_tasks[selected_index].status != u8(1) {
+                selected_tasks[selected_index].status = u8(1)
                 changed = true
             }
         case "check":
@@ -730,9 +717,9 @@ main :: proc() {
             fmt.printfln("--- %s ---", categories[selected_index])
             for task, index in selected_tasks {
                 if task.due_date == "" {
-                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, task.status)
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
                 } else {
-                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, task.status, task.due_date)
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
                 }
             }
 
@@ -748,8 +735,8 @@ main :: proc() {
             }
 
             // Update task
-            if selected_tasks[selected_index].status != "Complete" {
-                selected_tasks[selected_index].status = "Complete"
+            if selected_tasks[selected_index].status != u8(2) {
+                selected_tasks[selected_index].status = u8(2)
                 changed = true
             }
         case "save":
