@@ -54,7 +54,7 @@ encode_status :: proc "contextless" (status: string) -> u8 {
 /*
  * Load task data
  */
-read_tasks :: proc(filename: string) -> (map[string][dynamic]Task, []byte) {
+read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> (map[string][dynamic]Task, []byte) {
     // Read all file contents into memory
     data, ok := os.read_entire_file(filename)
     if !ok {
@@ -75,6 +75,7 @@ read_tasks :: proc(filename: string) -> (map[string][dynamic]Task, []byte) {
         category_str_len := cast(int) curr_ptr[0]
         category := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), category_str_len)
         curr_ptr = mem.ptr_offset(curr_ptr, 1 + category_str_len)
+        append(categories, category)
 
         // Allocate memory for task entries
         tasks[category] = make([dynamic]Task, num_entries)
@@ -112,7 +113,7 @@ read_tasks :: proc(filename: string) -> (map[string][dynamic]Task, []byte) {
 /*
  * Saves tasks to the given file
  */
-save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task) {
+save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task, categories: [dynamic]string) {
     // Open file
     file, err := os.open(filename, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
     if err != nil {
@@ -122,7 +123,7 @@ save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task) {
     defer os.close(file)
 
     // Iteratively write category and task entries
-    for category in tasks {
+    for category in categories {
         // Write number of tasks in current category
         os.write_byte(file, u8(len(tasks[category])))
 
@@ -185,7 +186,9 @@ main :: proc() {
     }
 
     // Load task data
-    tasks, data := read_tasks(DATA_FILE)
+    category_buffer: [MAX_NUM_CATEGORIES]string = ---
+    categories := mem.buffer_from_slice(category_buffer[:])
+    tasks, data := read_tasks(DATA_FILE, &categories)
     defer {
         for category in tasks {
             delete(tasks[category])
@@ -194,75 +197,62 @@ main :: proc() {
         delete(data)
     }
 
-    // Check for quick add
-    if len(os.args) == 2 && os.args[1] == "add" {
-        // Get task fields from user input
-        fmt.print("Name: ")
-        if !bufio.scanner_scan(&scanner) {
-            os.exit(1)
-        }
-        name := bufio.scanner_text(&scanner)
-        if len(name) > MAX_FIELD_SIZE {
-            fmt.eprintln("Name cannot exceed 255 characters")
-            os.exit(1)
-        }
-
-        fmt.print("Category: ")
-        if !bufio.scanner_scan(&scanner) {
-            os.exit(1)
-        }
-        category := bufio.scanner_text(&scanner)
-        if len(category) > MAX_FIELD_SIZE {
-            fmt.eprintln("Category cannot exceed 255 characters")
-            os.exit(1)
-        } else if category in tasks && len(tasks[category]) == MAX_CATEGORY_SIZE {
-            fmt.eprintln("A single category cannot store more than 255 tasks")
-            os.exit(1)
-        } else if !(category in tasks) && len(tasks) == MAX_NUM_CATEGORIES {
-            fmt.eprintln("Cannot have more than 50 categories")
-            os.exit(1)
-        }
-
-        fmt.print("Due Date: ")
-        if !bufio.scanner_scan(&scanner) {
-            os.exit(1)
-        }
-        due_date := bufio.scanner_text(&scanner)
-        if len(due_date) > MAX_FIELD_SIZE {
-            fmt.eprintln("Due date cannot exceed 255 characters")
-            os.exit(1)
-        }
-
-        // Create new category if needed
-        if !(category in tasks) {
-            tasks[category] = make([dynamic]Task, 0, 1)
-        }
-
-        // Add task
-        task := Task{
-            name=name,
-            status="Not Started",
-            due_date=due_date
-        }
-        append(&tasks[category], task)
-
-        // Save task
-        save_tasks(DATA_FILE, tasks)
-
-        os.exit(0)
-    }
-
-    // Get categories
-    category_buffer: [MAX_NUM_CATEGORIES]string = ---
-    categories := mem.buffer_from_slice(category_buffer[:])
-    for category in tasks {
-        append(&categories, category)
-    }
-    slice.sort(categories[:])
-
     // Check for quick commands
     if len(os.args) == 2 {
         switch os.args[1] {
+        case "add":
+            // Get task fields from user input
+            fmt.print("Name: ")
+            if !bufio.scanner_scan(&scanner) {
+                os.exit(1)
+            }
+            name := bufio.scanner_text(&scanner)
+            if len(name) > MAX_FIELD_SIZE {
+                fmt.eprintln("Name cannot exceed 255 characters")
+                os.exit(1)
+            }
+
+            fmt.print("Category: ")
+            if !bufio.scanner_scan(&scanner) {
+                os.exit(1)
+            }
+            category := bufio.scanner_text(&scanner)
+            if len(category) > MAX_FIELD_SIZE {
+                fmt.eprintln("Category cannot exceed 255 characters")
+                os.exit(1)
+            } else if category in tasks && len(tasks[category]) == MAX_CATEGORY_SIZE {
+                fmt.eprintln("A single category cannot store more than 255 tasks")
+                os.exit(1)
+            } else if !(category in tasks) && len(tasks) == MAX_NUM_CATEGORIES {
+                fmt.eprintln("Cannot have more than 50 categories")
+                os.exit(1)
+            }
+
+            fmt.print("Due Date: ")
+            if !bufio.scanner_scan(&scanner) {
+                os.exit(1)
+            }
+            due_date := bufio.scanner_text(&scanner)
+            if len(due_date) > MAX_FIELD_SIZE {
+                fmt.eprintln("Due date cannot exceed 255 characters")
+                os.exit(1)
+            }
+
+            // Create new category if needed
+            if !(category in tasks) {
+                tasks[category] = make([dynamic]Task, 0, 1)
+            }
+
+            // Add task
+            task := Task{
+                name=name,
+                status="Not Started",
+                due_date=due_date
+            }
+            append(&tasks[category], task)
+
+            // Save task
+            save_tasks(DATA_FILE, tasks, categories)
         case "show":
             fmt.println("=== Task Manager ===")
             show(tasks, categories)
@@ -315,7 +305,7 @@ main :: proc() {
 
             // Save task
             if changed {
-                save_tasks(DATA_FILE, tasks)
+                save_tasks(DATA_FILE, tasks, categories)
             }
         case:
             fmt.eprintln("Invalid command given")
@@ -754,7 +744,7 @@ main :: proc() {
         case "save":
             // Write changes
             if changed {
-                save_tasks(DATA_FILE, tasks)
+                save_tasks(DATA_FILE, tasks, categories)
             }
             break outer
         case "quit":
