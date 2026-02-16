@@ -481,7 +481,7 @@ main :: proc() {
                     successful_update = false
                 } else if !found && len(categories) == MAX_NUM_CATEGORIES {
                     fmt.eprintln("Cannot have more than 50 categories")
-                    break
+                    successful_update = false
                 } else {
                     // Check if the category exists
                     if !found {
