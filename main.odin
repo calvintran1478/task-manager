@@ -54,14 +54,13 @@ encode_status :: proc "contextless" (status: string) -> u8 {
 /*
  * Load task data
  */
-read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> ([dynamic][dynamic]Task, []byte) {
+read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories: ^[dynamic]string) -> []byte {
     // Read all file contents into memory
     data, ok := os.read_entire_file(filename)
     if !ok {
         fmt.eprintfln("Error opening task file: %v", filename)
         os.exit(1)
     }
-    tasks := make([dynamic][dynamic]Task)
 
     // Iteratively read category and task entries
     start_ptr := raw_data(data)
@@ -79,7 +78,7 @@ read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> ([dynamic]
 
         // Allocate memory for task entries
         category_tasks := make([dynamic]Task, num_entries)
-        append(&tasks, category_tasks)
+        append(tasks, category_tasks)
 
         // Read tasks in category
         for i in 0..<num_entries {
@@ -107,7 +106,7 @@ read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> ([dynamic]
         }
     }
 
-    return tasks, data
+    return data
 }
 
 /*
@@ -185,15 +184,18 @@ main :: proc() {
         free_all(context.temp_allocator)
     }
 
-    // Load task data
+    // Initialize stack-allocated buffers for storing task data
+    tasks_list_buffer: [MAX_NUM_CATEGORIES][dynamic]Task = ---
     category_buffer: [MAX_NUM_CATEGORIES]string = ---
+    tasks := mem.buffer_from_slice(tasks_list_buffer[:])
     categories := mem.buffer_from_slice(category_buffer[:])
-    tasks, data := read_tasks(DATA_FILE, &categories)
+
+    // Load task data from data file
+    data := read_tasks(DATA_FILE, &tasks, &categories)
     defer {
         for i in 0..<len(tasks) {
             delete(tasks[i])
         }
-        delete(tasks)
         delete(data)
     }
 
