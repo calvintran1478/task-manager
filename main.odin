@@ -54,14 +54,14 @@ encode_status :: proc "contextless" (status: string) -> u8 {
 /*
  * Load task data
  */
-read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> (map[string][dynamic]Task, []byte) {
+read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> ([dynamic][dynamic]Task, []byte) {
     // Read all file contents into memory
     data, ok := os.read_entire_file(filename)
     if !ok {
         fmt.eprintfln("Error opening task file: %v", filename)
         os.exit(1)
     }
-    tasks := make(map[string][dynamic]Task)
+    tasks := make([dynamic][dynamic]Task)
 
     // Iteratively read category and task entries
     start_ptr := raw_data(data)
@@ -78,8 +78,8 @@ read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> (map[strin
         append(categories, category)
 
         // Allocate memory for task entries
-        tasks[category] = make([dynamic]Task, num_entries)
-        category_tasks := &tasks[category]
+        category_tasks := make([dynamic]Task, num_entries)
+        append(&tasks, category_tasks)
 
         // Read tasks in category
         for i in 0..<num_entries {
@@ -113,7 +113,7 @@ read_tasks :: proc(filename: string, categories: ^[dynamic]string) -> (map[strin
 /*
  * Saves tasks to the given file
  */
-save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task, categories: [dynamic]string) {
+save_tasks :: proc(filename: string, tasks: [dynamic][dynamic]Task, categories: [dynamic]string) {
     // Open file
     file, err := os.open(filename, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
     if err != nil {
@@ -123,16 +123,16 @@ save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task, categories
     defer os.close(file)
 
     // Iteratively write category and task entries
-    for category in categories {
+    for category, i in categories {
         // Write number of tasks in current category
-        os.write_byte(file, u8(len(tasks[category])))
+        os.write_byte(file, u8(len(tasks[i])))
 
         // Write category name
         os.write_byte(file, u8(len(category)))
         os.write_string(file, category)
 
         // Write tasks in category
-        for task in tasks[category] {
+        for task in tasks[i] {
             // Write status
             os.write_byte(file, encode_status(task.status))
 
@@ -150,10 +150,10 @@ save_tasks :: proc(filename: string, tasks: map[string][dynamic]Task, categories
 /*
  * Display tasks from each category
  */
-show :: proc(tasks: map[string][dynamic]Task, categories: [dynamic]string) {
-    for category in categories {
+show :: proc(tasks: [dynamic][dynamic]Task, categories: [dynamic]string) {
+    for category, i in categories {
         fmt.printfln("--- %s ---", category)
-        for task in tasks[category] {
+        for task in tasks[i] {
             if task.due_date == "" {
                 fmt.printfln("name: %s, status: %s", task.name, task.status)
             } else {
@@ -190,8 +190,8 @@ main :: proc() {
     categories := mem.buffer_from_slice(category_buffer[:])
     tasks, data := read_tasks(DATA_FILE, &categories)
     defer {
-        for category in tasks {
-            delete(tasks[category])
+        for i in 0..<len(tasks) {
+            delete(tasks[i])
         }
         delete(tasks)
         delete(data)
@@ -220,10 +220,12 @@ main :: proc() {
             if len(category) > MAX_FIELD_SIZE {
                 fmt.eprintln("Category cannot exceed 255 characters")
                 os.exit(1)
-            } else if category in tasks && len(tasks[category]) == MAX_CATEGORY_SIZE {
+            }
+            index, found := slice.binary_search(categories[:], category)
+            if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
                 fmt.eprintln("A single category cannot store more than 255 tasks")
                 os.exit(1)
-            } else if !(category in tasks) && len(tasks) == MAX_NUM_CATEGORIES {
+            } else if !found && len(tasks) == MAX_NUM_CATEGORIES {
                 fmt.eprintln("Cannot have more than 50 categories")
                 os.exit(1)
             }
@@ -239,8 +241,9 @@ main :: proc() {
             }
 
             // Create new category if needed
-            if !(category in tasks) {
-                tasks[category] = make([dynamic]Task, 0, 1)
+            if !found {
+                inject_at(&categories, index, category)
+                inject_at(&tasks, index, make([dynamic]Task, 0, 1))
             }
 
             // Add task
@@ -249,7 +252,7 @@ main :: proc() {
                 status="Not Started",
                 due_date=due_date
             }
-            append(&tasks[category], task)
+            append(&tasks[index], task)
 
             // Save task
             save_tasks(DATA_FILE, tasks, categories)
@@ -273,7 +276,7 @@ main :: proc() {
                 fmt.eprintln("Invalid index")
                 break
             }
-            selected_tasks := tasks[categories[selected_index]]
+            selected_tasks := tasks[selected_index]
 
             // Display task options
             fmt.printfln("--- %s ---", categories[selected_index])
@@ -351,10 +354,12 @@ main :: proc() {
             if len(category) > MAX_FIELD_SIZE {
                 fmt.eprintln("Category cannot exceed 255 characters")
                 break
-            } else if category in tasks && len(tasks[category]) == MAX_CATEGORY_SIZE {
+            }
+            index, found := slice.binary_search(categories[:], category)
+            if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
                 fmt.eprintln("A single category cannot store more than 255 tasks")
                 break
-            } else if !(category in tasks) && len(categories) == MAX_NUM_CATEGORIES {
+            } else if !found && len(categories) == MAX_NUM_CATEGORIES {
                 fmt.eprintln("Cannot have more than 50 categories")
                 break
             }
@@ -370,10 +375,9 @@ main :: proc() {
             }
 
             // Create new category if needed
-            index, found := slice.binary_search(categories[:], category)
             if !found {
                 inject_at(&categories, index, category)
-                tasks[category] = make([dynamic]Task, 0, 1)
+                inject_at(&tasks, index, make([dynamic]Task, 0, 1))
             }
 
             // Add task
@@ -382,7 +386,7 @@ main :: proc() {
                 status="Not Started",
                 due_date=due_date
             }
-            append(&tasks[category], task)
+            append(&tasks[index], task)
 
             changed = true
         case "update":
@@ -404,7 +408,7 @@ main :: proc() {
                 break
             }
             selected_category := categories[selected_category_index]
-            selected_tasks := tasks[selected_category]
+            selected_tasks := tasks[selected_category_index]
 
             // Display task options
             fmt.printfln("--- %s ---", selected_category)
@@ -471,33 +475,34 @@ main :: proc() {
                 } else if len(value) > MAX_FIELD_SIZE {
                     fmt.eprintln("Category cannot exceed 255 characters")
                     successful_update = false
-                } else if value in tasks && len(tasks[value]) == MAX_CATEGORY_SIZE {
+                }
+                index, found := slice.binary_search(categories[:], value)
+                if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
                     fmt.eprintln("A single category cannot store more than 255 tasks")
                     successful_update = false
-                } else if !(value in tasks) && len(categories) == MAX_NUM_CATEGORIES {
+                } else if !found && len(categories) == MAX_NUM_CATEGORIES {
                     fmt.eprintln("Cannot have more than 50 categories")
                     break
                 } else {
                     // Check if the category exists
-                    index, found := slice.binary_search(categories[:], value)
                     if !found {
                         inject_at(&categories, index, value)
-                        tasks[value] = make([dynamic]Task, 0, 1)
+                        inject_at(&tasks, index, make([dynamic]Task, 0, 1))
                         if index < selected_category_index {
                             selected_category_index += 1
                         }
                     }
 
                     // Add task to its new category
-                    append(&tasks[value], selected_task^)
+                    append(&tasks[index], selected_task^)
 
                     // Delete task entry from original category
-                    if len(tasks[selected_category]) == 1 {
-                        delete(tasks[selected_category])
-                        delete_key(&tasks, selected_category)
+                    if len(tasks[selected_category_index]) == 1 {
+                        delete(tasks[selected_category_index])
+                        ordered_remove(&tasks, selected_category_index)
                         ordered_remove(&categories, selected_category_index)
                     } else {
-                        ordered_remove(&tasks[selected_category], selected_task_index)
+                        ordered_remove(&tasks[selected_category_index], selected_task_index)
                     }
 
                     successful_update = true
@@ -539,7 +544,7 @@ main :: proc() {
                 break
             }
             selected_category := categories[selected_category_index]
-            selected_tasks := tasks[selected_category]
+            selected_tasks := tasks[selected_category_index]
 
             // Display task options
             fmt.printfln("--- %s ---", selected_category)
@@ -564,10 +569,10 @@ main :: proc() {
             }
 
             // Delete task
-            ordered_remove(&tasks[selected_category], selected_task_index)
-            if len(tasks[selected_category]) == 0 {
-                delete(tasks[selected_category])
-                delete_key(&tasks, selected_category)
+            ordered_remove(&tasks[selected_category_index], selected_task_index)
+            if len(tasks[selected_category_index]) == 0 {
+                delete(tasks[selected_category_index])
+                ordered_remove(&tasks, selected_category_index)
                 ordered_remove(&categories, selected_category_index)
             }
 
@@ -589,7 +594,7 @@ main :: proc() {
                 break
             }
             selected_category := categories[selected_category_index]
-            selected_tasks := tasks[selected_category]
+            selected_tasks := tasks[selected_category_index]
 
             // Display task options
             fmt.printfln("--- %s ---", selected_category)
@@ -641,13 +646,13 @@ main :: proc() {
             if len(removal_indices) > 0 {
                 // Remove tasks from category
                 #reverse for index in removal_indices {
-                    ordered_remove(&tasks[selected_category], index)
+                    ordered_remove(&tasks[selected_category_index], index)
                 }
 
                 // Delete category if no tasks remain
-                if len(tasks[selected_category]) == 0 {
-                    delete(tasks[selected_category])
-                    delete_key(&tasks, selected_category)
+                if len(tasks[selected_category_index]) == 0 {
+                    delete(tasks[selected_category_index])
+                    ordered_remove(&tasks, selected_category_index)
                     ordered_remove(&categories, selected_category_index)
                 }
 
@@ -669,7 +674,7 @@ main :: proc() {
                 fmt.eprintln("Invalid index")
                 break
             }
-            selected_tasks := tasks[categories[selected_index]]
+            selected_tasks := tasks[selected_index]
 
             // Display task options
             fmt.printfln("--- %s ---", categories[selected_index])
@@ -713,7 +718,7 @@ main :: proc() {
                 fmt.eprintln("Invalid index")
                 break
             }
-            selected_tasks := tasks[categories[selected_index]]
+            selected_tasks := tasks[selected_index]
 
             // Display task options
             fmt.printfln("--- %s ---", categories[selected_index])
