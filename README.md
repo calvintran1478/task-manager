@@ -34,7 +34,7 @@ At this point you can freely delete the source file. To quickly display tasks wi
 ```bash
 tm show
 ```
-Similar quick commands are supported for `add`, `check`, and `today`.
+Similar quick commands are supported for `add`, `start`, `check`, and `today`.
 
 ## Uninstalling
 

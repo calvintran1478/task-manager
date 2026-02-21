@@ -284,6 +284,51 @@ main :: proc() {
                     fmt.println()
                 }
             }
+        case "start":
+            // Display categories
+            fmt.println("=== Task Manager ===")
+            for category, index in categories {
+                fmt.println(index, category)
+            }
+
+            // Get tasks from a specific category
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index >= len(categories) {
+                fmt.eprintln("Invalid index")
+                break
+            }
+            selected_tasks := tasks[selected_index]
+
+            // Display task options
+            fmt.printfln("--- %s ---", categories[selected_index])
+            for task, index in selected_tasks {
+                if task.due_date == "" {
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
+                } else {
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
+                }
+            }
+
+            // Select task to update
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index >= len(selected_tasks) {
+                fmt.eprintln("Invalid index")
+                break
+            }
+
+            // Update task
+            if selected_tasks[selected_index].status != u8(1) {
+                selected_tasks[selected_index].status = u8(1)
+                save_tasks(DATA_FILE, tasks, categories)
+            }
         case "check":
             // Display categories
             fmt.println("=== Task Manager ===")
@@ -325,14 +370,8 @@ main :: proc() {
             }
 
             // Update task
-            changed := false
             if selected_tasks[selected_index].status != u8(2) {
                 selected_tasks[selected_index].status = u8(2)
-                changed = true
-            }
-
-            // Save task
-            if changed {
                 save_tasks(DATA_FILE, tasks, categories)
             }
         case:
