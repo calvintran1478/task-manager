@@ -256,6 +256,34 @@ main :: proc() {
         case "show":
             fmt.println("=== Task Manager ===")
             show(tasks, categories)
+        case "today":
+            fmt.println("=== Task Manager ===")
+            for category, i in categories {
+                // Check if category has at least one task today
+                category_tasks := tasks[i]
+                start_index, j := -1, 0
+                for start_index == -1 && j < len(category_tasks) {
+                    if category_tasks[j].due_date == "Today" {
+                        start_index = j
+                    }
+                    j += 1
+                }
+
+                // Print category if at least one task was found
+                if start_index != -1 {
+                    fmt.printfln("--- %s ---", category)
+                    first_task := category_tasks[start_index]
+                    fmt.printfln("name: %s, status: %s", first_task.name, status_strings[first_task.status])
+
+                    for j in (start_index + 1)..<len(category_tasks) {
+                        task := category_tasks[j]
+                        if task.due_date == "Today" {
+                            fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                        }
+                    }
+                    fmt.println()
+                }
+            }
         case "check":
             // Display categories
             fmt.println("=== Task Manager ===")
@@ -331,6 +359,33 @@ main :: proc() {
         switch command {
         case "show":
             show(tasks, categories)
+        case "today":
+            for category, i in categories {
+                // Check if category has at least one task today
+                category_tasks := tasks[i]
+                start_index, j := -1, 0
+                for start_index == -1 && j < len(category_tasks) {
+                    if category_tasks[j].due_date == "Today" {
+                        start_index = j
+                    }
+                    j += 1
+                }
+
+                // Print category if at least one task was found
+                if start_index != -1 {
+                    fmt.printfln("--- %s ---", category)
+                    first_task := category_tasks[start_index]
+                    fmt.printfln("name: %s, status: %s", first_task.name, status_strings[first_task.status])
+
+                    for j in (start_index + 1)..<len(category_tasks) {
+                        task := category_tasks[j]
+                        if task.due_date == "Today" {
+                            fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                        }
+                    }
+                    fmt.println()
+                }
+            }
         case "add":
             // Get task fields from user input
             fmt.print("Name: ")
