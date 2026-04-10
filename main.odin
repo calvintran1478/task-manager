@@ -44,8 +44,8 @@ encode_status :: proc "contextless" (status: string) -> u8 {
  */
 read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories: ^[dynamic]string) -> []byte {
     // Read all file contents into memory
-    data, ok := os.read_entire_file(filename)
-    if !ok {
+    data, err := os.read_entire_file_from_path(filename, context.allocator)
+    if err != nil {
         fmt.eprintfln("Error opening task file: %v", filename)
         os.exit(1)
     }
@@ -168,7 +168,7 @@ main :: proc() {
 
     // Set up input scanner
     scanner: bufio.Scanner
-    stdin := os.stream_from_handle(os.stdin)
+    stdin := os.to_stream(os.stdin)
     bufio.scanner_init(&scanner, stdin, context.temp_allocator)
     defer {
         if err := bufio.scanner_error(&scanner); err != nil {
