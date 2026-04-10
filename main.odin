@@ -321,32 +321,22 @@ main :: proc() {
                 save_tasks(DATA_FILE, tasks, categories)
             }
         case "check":
-            // Display categories
+            // Display tasks
             fmt.println("=== Task Manager ===")
-            for category, index in categories {
-                fmt.println(index, category)
-            }
-
-            // Get tasks from a specific category
-            fmt.print("Enter index: ")
-            if !bufio.scanner_scan(&scanner) {
-                break
-            }
-            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(categories) {
-                fmt.eprintln("Invalid index")
-                break
-            }
-            selected_tasks := tasks[selected_index]
-
-            // Display task options
-            fmt.printfln("--- %s ---", categories[selected_index])
-            for task, index in selected_tasks {
-                if task.due_date == "" {
-                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
-                } else {
-                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
+            task_index := 0
+            task_selection: [MAX_TASK_SELECTION_SIZE]^Task = ---
+            for category, i in categories {
+                fmt.printfln("--- %s ---", category)
+                for &task in tasks[i] {
+                    if task.due_date == "" {
+                        fmt.printfln("(%d) name: %s, status: %s", task_index, task.name, status_strings[task.status])
+                    } else {
+                        fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, task.name, status_strings[task.status], task.due_date)
+                    }
+                    task_selection[task_index] = &task
+                    task_index += 1
                 }
+                fmt.println()
             }
 
             // Select task to update
@@ -354,15 +344,15 @@ main :: proc() {
             if !bufio.scanner_scan(&scanner) {
                 break
             }
-            selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(selected_tasks) {
+            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index >= task_index {
                 fmt.eprintln("Invalid index")
                 break
             }
 
             // Update task
-            if selected_tasks[selected_index].status != u8(2) {
-                selected_tasks[selected_index].status = u8(2)
+            if task_selection[selected_index].status != u8(2) {
+                task_selection[selected_index].status = u8(2)
                 save_tasks(DATA_FILE, tasks, categories)
             }
         case:
