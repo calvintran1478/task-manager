@@ -634,7 +634,7 @@ main :: proc() {
             selected_category_index: int = ---
             valid: bool = ---
             selected_category_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_category_index >= len(categories) {
+            if !valid || selected_category_index < 0 || selected_category_index >= len(categories) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -658,7 +658,7 @@ main :: proc() {
             }
             selected_task_index: int = ---
             selected_task_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_task_index >= len(selected_tasks) {
+            if !valid || selected_task_index < 0 || selected_task_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -770,7 +770,7 @@ main :: proc() {
             valid: bool = ---
             selected_category_index: int = ---
             selected_category_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_category_index >= len(categories) {
+            if !valid || selected_category_index < 0 || selected_category_index >= len(categories) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -794,7 +794,7 @@ main :: proc() {
             }
             selected_task_index: int = ---
             selected_task_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_task_index >= len(selected_tasks) {
+            if !valid || selected_task_index < 0 || selected_task_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -820,7 +820,7 @@ main :: proc() {
                 break
             }
             selected_category_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_category_index >= len(categories) {
+            if !valid || selected_category_index < 0 || selected_category_index >= len(categories) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -855,7 +855,7 @@ main :: proc() {
 
                 // Validate index value
                 selected_task_index, valid := strconv.parse_int(value)
-                if !valid || selected_task_index >= len(selected_tasks) {
+                if !valid || selected_task_index < 0 || selected_task_index >= len(selected_tasks) {
                     fmt.eprintln("Invalid index")
                     clear(&removal_indices)
                     break
@@ -901,7 +901,7 @@ main :: proc() {
                 break
             }
             selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(categories) {
+            if !valid || selected_index < 0 || selected_index >= len(categories) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -923,7 +923,7 @@ main :: proc() {
                 break
             }
             selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(selected_tasks) {
+            if !valid || selected_index < 0 || selected_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -945,7 +945,7 @@ main :: proc() {
                 break
             }
             selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(categories) {
+            if !valid || selected_index < 0 || selected_index >= len(categories) {
                 fmt.eprintln("Invalid index")
                 break
             }
@@ -967,7 +967,7 @@ main :: proc() {
                 break
             }
             selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= len(selected_tasks) {
+            if !valid || selected_index < 0 || selected_index >= len(selected_tasks) {
                 fmt.eprintln("Invalid index")
                 break
             }
