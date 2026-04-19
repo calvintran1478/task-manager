@@ -41,9 +41,9 @@ encode_status :: proc "contextless" (status: string) -> u8 {
 }
 
 /*
- * Load task data
+ * Load task data in the form of dynamic arrays
  */
-read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories: ^[dynamic]string) -> []byte {
+read_tasks_dynamic :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories: ^[dynamic]string) -> []byte {
     // Read all file contents into memory
     data, err := os.read_entire_file_from_path(filename, context.allocator)
     if err != nil {
@@ -104,9 +104,75 @@ read_tasks :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, categories:
 }
 
 /*
+ * Load task data in the form of slices
+ */
+read_tasks_fixed :: proc(filename: string, tasks: ^[dynamic][]Task, categories: ^[dynamic] string, task_buffer: []Task) -> []byte {
+    // Read all file contents into memory
+    data, err := os.read_entire_file_from_path(filename, context.allocator)
+    if err != nil {
+        fmt.eprintfln("Error opening task file: %v", filename)
+        os.exit(1)
+    }
+
+    // Iteratively read category and task entries
+    start_ptr := raw_data(data)
+    curr_ptr := start_ptr
+    num_tasks, category_index := 0, 0
+    for mem.ptr_sub(curr_ptr, start_ptr) != len(data) {
+        // Read number of tasks in current category
+        num_entries := curr_ptr[0]
+        curr_ptr = mem.ptr_offset(curr_ptr, 1)
+
+        // Read category name
+        category_str_len := cast(int) curr_ptr[0]
+        category := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), category_str_len)
+        curr_ptr = mem.ptr_offset(curr_ptr, 1 + category_str_len)
+        #no_bounds_check categories^[category_index] = category
+
+        // Set up category task entries
+        category_tasks := task_buffer[num_tasks:(num_tasks + cast(int) num_entries)]
+        #no_bounds_check tasks^[category_index] = category_tasks
+        category_index += 1
+
+        // Read tasks in category
+        for i in 0..<num_entries {
+            // Read status
+            status := curr_ptr[0]
+            curr_ptr = mem.ptr_offset(curr_ptr, 1)
+
+            // Read name
+            name_length := cast(int) curr_ptr[0]
+            name := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), name_length)
+            curr_ptr = mem.ptr_offset(curr_ptr, 1 + name_length)
+
+            // Read due date
+            due_date_length := cast(int) curr_ptr[0]
+            due_date := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), due_date_length)
+            curr_ptr = mem.ptr_offset(curr_ptr, 1 + due_date_length)
+
+            // Create task
+            category_tasks[i] = Task{
+                name=name,
+                status=status,
+                due_date=due_date,
+            }
+        }
+        num_tasks += cast(int) num_entries
+    }
+
+    // Set lengths of tasks and categories
+    (^runtime.Raw_Dynamic_Array)(tasks).len = category_index
+    (^runtime.Raw_Dynamic_Array)(categories).len = category_index
+
+    return data
+}
+
+read_tasks :: proc{read_tasks_dynamic, read_tasks_fixed}
+
+/*
  * Saves tasks to the given file
  */
-save_tasks :: proc(filename: string, tasks: [dynamic][dynamic]Task, categories: [dynamic]string) {
+save_tasks_dynamic :: proc(filename: string, tasks: [dynamic][dynamic]Task, categories: [dynamic]string) {
     // Open file
     file, err := os.open(filename, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
     if err != nil {
@@ -141,21 +207,43 @@ save_tasks :: proc(filename: string, tasks: [dynamic][dynamic]Task, categories: 
 }
 
 /*
- * Display tasks from each category
+ * Saves tasks to the given file
  */
-show :: proc(tasks: [dynamic][dynamic]Task, categories: [dynamic]string) {
+save_tasks_fixed :: proc(filename: string, tasks: [dynamic][]Task, categories: [dynamic] string) {
+    // Open file
+    file, err := os.open(filename, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+    if err != nil {
+        fmt.eprintfln("Error opening file: %v", filename)
+        os.exit(1)
+    }
+    defer os.close(file)
+
+    // Iteratively write category and task entries
     for category, i in categories {
-        fmt.printfln("--- %s ---", category)
+        // Write number of tasks in current category
+        os.write_byte(file, u8(len(tasks[i])))
+
+        // Write category name
+        os.write_byte(file, u8(len(category)))
+        os.write_string(file, category)
+
+        // Write tasks in category
         for task in tasks[i] {
-            if task.due_date == "" {
-                fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
-            } else {
-                fmt.printfln("name: %s, status: %s, due_date: %s", task.name, status_strings[task.status], task.due_date)
-            }
+            // Write status
+            os.write_byte(file, task.status)
+
+            // Write name
+            os.write_byte(file, u8(len(task.name)))
+            os.write_string(file, task.name)
+
+            // Write due date
+            os.write_byte(file, u8(len(task.due_date)))
+            os.write_string(file, task.due_date)
         }
-        fmt.println()
     }
 }
+
+save_tasks :: proc{save_tasks_dynamic, save_tasks_fixed}
 
 /*
  * CLI application for managing personal tasks
@@ -178,25 +266,27 @@ main :: proc() {
         free_all(context.temp_allocator)
     }
 
-    // Initialize stack-allocated buffers for storing task data
-    tasks_list_buffer: [MAX_NUM_CATEGORIES][dynamic]Task = ---
+    // Initialize stack-allocated buffer for storing categories
     category_buffer: [MAX_NUM_CATEGORIES]string = ---
-    tasks := mem.buffer_from_slice(tasks_list_buffer[:])
     categories := mem.buffer_from_slice(category_buffer[:])
-
-    // Load task data from data file
-    data := read_tasks(DATA_FILE, &tasks, &categories)
-    defer {
-        for i in 0..<len(tasks) {
-            delete(tasks[i])
-        }
-        delete(data)
-    }
 
     // Check for quick commands
     if len(os.args) == 2 {
         switch os.args[1] {
         case "add":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][dynamic]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories)
+            defer {
+                for i in 0..<len(tasks) {
+                    delete(tasks[i])
+                }
+                delete(data)
+            }
+
             // Get task fields from user input
             fmt.print("Name: ")
             if !bufio.scanner_scan(&scanner) {
@@ -255,9 +345,39 @@ main :: proc() {
             // Save task
             save_tasks(DATA_FILE, tasks, categories)
         case "show":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
+            task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories, task_buffer[:])
+            defer delete(data)
+
+            // Display tasks
             fmt.println("=== Task Manager ===")
-            show(tasks, categories)
+            for category, i in categories {
+                fmt.printfln("--- %s ---", category)
+                for task in tasks[i] {
+                    if task.due_date == "" {
+                        fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                    } else {
+                        fmt.printfln("name: %s, status: %s, due_date: %s", task.name, status_strings[task.status], task.due_date)
+                    }
+                }
+                fmt.println()
+            }
         case "today":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
+            task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories, task_buffer[:])
+            defer delete(data)
+
+            // Display tasks
             fmt.println("=== Task Manager ===")
             for category, i in categories {
                 // Check if category has at least one task today
@@ -286,19 +406,26 @@ main :: proc() {
                 }
             }
         case "start":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
+            task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories, task_buffer[:])
+            defer delete(data)
+
             // Display tasks
             fmt.println("=== Task Manager ===")
             task_index := 0
-            task_selection: [MAX_TASK_SELECTION_SIZE]^Task = ---
             for category, i in categories {
                 fmt.printfln("--- %s ---", category)
-                for &task in tasks[i] {
+                for task in tasks[i] {
                     if task.due_date == "" {
                         fmt.printfln("(%d) name: %s, status: %s", task_index, task.name, status_strings[task.status])
                     } else {
                         fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, task.name, status_strings[task.status], task.due_date)
                     }
-                    task_selection[task_index] = &task
                     task_index += 1
                 }
                 fmt.println()
@@ -310,21 +437,29 @@ main :: proc() {
                 break
             }
             selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= task_index {
+            if !valid || selected_index < 0 || selected_index >= task_index {
                 fmt.eprintln("Invalid index")
                 break
             }
 
             // Update task
-            if task_selection[selected_index].status != u8(1) {
-                task_selection[selected_index].status = u8(1)
+            if task_buffer[selected_index].status != u8(1) {
+                task_buffer[selected_index].status = u8(1)
                 save_tasks(DATA_FILE, tasks, categories)
             }
         case "check":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
+            task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories, task_buffer[:])
+            defer delete(data)
+
             // Display tasks
             fmt.println("=== Task Manager ===")
             task_index := 0
-            task_selection: [MAX_TASK_SELECTION_SIZE]^Task = ---
             for category, i in categories {
                 fmt.printfln("--- %s ---", category)
                 for &task in tasks[i] {
@@ -333,7 +468,6 @@ main :: proc() {
                     } else {
                         fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, task.name, status_strings[task.status], task.due_date)
                     }
-                    task_selection[task_index] = &task
                     task_index += 1
                 }
                 fmt.println()
@@ -345,14 +479,14 @@ main :: proc() {
                 break
             }
             selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
-            if !valid || selected_index >= task_index {
+            if !valid || selected_index < 0 || selected_index >= task_index {
                 fmt.eprintln("Invalid index")
                 break
             }
 
             // Update task
-            if task_selection[selected_index].status != u8(2) {
-                task_selection[selected_index].status = u8(2)
+            if task_buffer[selected_index].status != u8(2) {
+                task_buffer[selected_index].status = u8(2)
                 save_tasks(DATA_FILE, tasks, categories)
             }
         case:
@@ -360,6 +494,19 @@ main :: proc() {
             os.exit(1)
         }
         os.exit(0)
+    }
+
+    // Initialize stack-allocated buffers for storing task data
+    tasks_list_buffer: [MAX_NUM_CATEGORIES][dynamic]Task = ---
+    tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+    // Load task data from data file
+    data := read_tasks(DATA_FILE, &tasks, &categories)
+    defer {
+        for i in 0..<len(tasks) {
+            delete(tasks[i])
+        }
+        delete(data)
     }
 
     // Display title
@@ -378,7 +525,17 @@ main :: proc() {
         // Execute command
         switch command {
         case "show":
-            show(tasks, categories)
+            for category, i in categories {
+                fmt.printfln("--- %s ---", category)
+                for task in tasks[i] {
+                    if task.due_date == "" {
+                        fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                    } else {
+                        fmt.printfln("name: %s, status: %s, due_date: %s", task.name, status_strings[task.status], task.due_date)
+                    }
+                }
+                fmt.println()
+            }
         case "today":
             for category, i in categories {
                 // Check if category has at least one task today
