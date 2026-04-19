@@ -17,7 +17,7 @@ Task :: struct {
 
 DATA_FILE :: ""
 MAX_FIELD_SIZE :: 255
-MAX_CATEGORY_SIZE :: 255
+MAX_CATEGORY_SIZE :: 120
 MAX_NUM_CATEGORIES :: 50
 MAX_TASK_SELECTION_SIZE :: MAX_NUM_CATEGORIES * MAX_CATEGORY_SIZE
 
@@ -309,7 +309,7 @@ main :: proc() {
             }
             index, found := slice.binary_search(categories[:], category)
             if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
-                fmt.eprintln("A single category cannot store more than 255 tasks")
+                fmt.eprintln("A single category cannot store more than 120 tasks")
                 os.exit(1)
             } else if !found && len(tasks) == MAX_NUM_CATEGORIES {
                 fmt.eprintln("Cannot have more than 50 categories")
@@ -586,7 +586,7 @@ main :: proc() {
             }
             index, found := slice.binary_search(categories[:], category)
             if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
-                fmt.eprintln("A single category cannot store more than 255 tasks")
+                fmt.eprintln("A single category cannot store more than 120 tasks")
                 break
             } else if !found && len(categories) == MAX_NUM_CATEGORIES {
                 fmt.eprintln("Cannot have more than 50 categories")
@@ -709,7 +709,7 @@ main :: proc() {
                 }
                 index, found := slice.binary_search(categories[:], value)
                 if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
-                    fmt.eprintln("A single category cannot store more than 255 tasks")
+                    fmt.eprintln("A single category cannot store more than 120 tasks")
                     successful_update = false
                 } else if !found && len(categories) == MAX_NUM_CATEGORIES {
                     fmt.eprintln("Cannot have more than 50 categories")
