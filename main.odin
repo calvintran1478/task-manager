@@ -23,7 +23,7 @@ MAX_NUM_CATEGORIES :: 50
 MAX_TASK_SELECTION_SIZE :: MAX_NUM_CATEGORIES * MAX_CATEGORY_SIZE
 
 @(rodata)
-status_strings: [3]string = {"Not Started", "In Progress", "Complete"}
+status_strings: [4]string = {"Not Started", "Queue", "In Progress", "Complete"}
 
 /*
  * Encode status for file writing
@@ -32,12 +32,14 @@ encode_status :: proc "contextless" (status: string) -> u8 {
     switch status {
     case "Not Started":
         return u8(0)
-    case "In Progress":
+    case "Queue":
         return u8(1)
-    case "Complete":
+    case "In Progress":
         return u8(2)
-    case:
+    case "Complete":
         return u8(3)
+    case:
+        return u8(4)
     }
 }
 
@@ -511,7 +513,7 @@ main :: proc() {
                     fmt.println()
                 }
             }
-        case "start":
+        case "queue":
             // Initialize stack-allocated buffers for storing task data
             tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
             task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
@@ -553,6 +555,48 @@ main :: proc() {
                 task_buffer[selected_index].status = u8(1)
                 save_tasks(DATA_FILE, tasks, categories)
             }
+        case "start":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
+            task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories, task_buffer[:])
+            defer delete(data)
+
+            // Display tasks
+            fmt.println("=== Task Manager ===")
+            task_index := 0
+            for category, i in categories {
+                fmt.printfln("--- %s ---", category)
+                for task in tasks[i] {
+                    if task.due_date == "" {
+                        fmt.printfln("(%d) name: %s, status: %s", task_index, task.name, status_strings[task.status])
+                    } else {
+                        fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, task.name, status_strings[task.status], task.due_date)
+                    }
+                    task_index += 1
+                }
+                fmt.println()
+            }
+
+            // Select task to update
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index < 0 || selected_index >= task_index {
+                fmt.eprintln("Invalid index")
+                break
+            }
+
+            // Update task
+            if task_buffer[selected_index].status != u8(2) {
+                task_buffer[selected_index].status = u8(2)
+                save_tasks(DATA_FILE, tasks, categories)
+            }
         case "check":
             // Initialize stack-allocated buffers for storing task data
             tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
@@ -591,8 +635,8 @@ main :: proc() {
             }
 
             // Update task
-            if task_buffer[selected_index].status != u8(2) {
-                task_buffer[selected_index].status = u8(2)
+            if task_buffer[selected_index].status != u8(3) {
+                task_buffer[selected_index].status = u8(3)
                 save_tasks(DATA_FILE, tasks, categories)
             }
         case:
@@ -806,8 +850,8 @@ main :: proc() {
                     successful_update = true
                 }
             case "status":
-                if value != "Not Started" && value != "In Progress" && value != "Complete" {
-                    fmt.eprintln("Invalid status. Supported values are: \"Not Started\", \"In Progress\", and \"Complete\"")
+                if value != "Not Started" && value != "Queue" && value != "In Progress" && value != "Complete" {
+                    fmt.eprintln("Invalid status. Supported values are: \"Not Started\", \"Queue\", \"In Progress\", and \"Complete\"")
                     successful_update = false
                 } else if selected_task.status == encode_status(value) {
                     successful_update = false
@@ -1012,7 +1056,7 @@ main :: proc() {
 
                 changed = true
             }
-        case "start":
+        case "queue":
             // Display categories
             for category, index in categories {
                 fmt.println(index, category)
@@ -1056,7 +1100,7 @@ main :: proc() {
                 selected_tasks[selected_index].status = u8(1)
                 changed = true
             }
-        case "check":
+        case "start":
             // Display categories
             for category, index in categories {
                 fmt.println(index, category)
@@ -1098,6 +1142,50 @@ main :: proc() {
             // Update task
             if selected_tasks[selected_index].status != u8(2) {
                 selected_tasks[selected_index].status = u8(2)
+                changed = true
+            }
+        case "check":
+            // Display categories
+            for category, index in categories {
+                fmt.println(index, category)
+            }
+
+            // Get tasks from a specific category
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index < 0 || selected_index >= len(categories) {
+                fmt.eprintln("Invalid index")
+                break
+            }
+            selected_tasks := tasks[selected_index]
+
+            // Display task options
+            fmt.printfln("--- %s ---", categories[selected_index])
+            for task, index in selected_tasks {
+                if task.due_date == "" {
+                    fmt.printfln("(%d) name: %s, status: %s", index, task.name, status_strings[task.status])
+                } else {
+                    fmt.printfln("(%d) name: %s, status: %s, due_date: %s", index, task.name, status_strings[task.status], task.due_date)
+                }
+            }
+
+            // Select task to update
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid = strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index < 0 || selected_index >= len(selected_tasks) {
+                fmt.eprintln("Invalid index")
+                break
+            }
+
+            // Update task
+            if selected_tasks[selected_index].status != u8(3) {
+                selected_tasks[selected_index].status = u8(3)
                 changed = true
             }
         case "save":
