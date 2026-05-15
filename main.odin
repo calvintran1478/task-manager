@@ -12,6 +12,7 @@ import "base:runtime"
 Task :: struct {
     name: string,
     status: u8,
+    today: bool,
     due_date: string
 }
 
@@ -77,6 +78,10 @@ read_tasks_dynamic :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, cat
             status := curr_ptr[0]
             curr_ptr = mem.ptr_offset(curr_ptr, 1)
 
+            // Read "today" status
+            today := bool(curr_ptr[0])
+            curr_ptr = mem.ptr_offset(curr_ptr, 1)
+
             // Read name
             name_length := cast(int) curr_ptr[0]
             name := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), name_length)
@@ -91,6 +96,7 @@ read_tasks_dynamic :: proc(filename: string, tasks: ^[dynamic][dynamic]Task, cat
             category_tasks[i] = Task{
                 name=name,
                 status=status,
+                today=today,
                 due_date=due_date,
             }
         }
@@ -140,6 +146,10 @@ read_tasks_fixed :: proc(filename: string, tasks: ^[dynamic][]Task, categories: 
             status := curr_ptr[0]
             curr_ptr = mem.ptr_offset(curr_ptr, 1)
 
+            // Read "today" status
+            today := bool(curr_ptr[0])
+            curr_ptr = mem.ptr_offset(curr_ptr, 1)
+
             // Read name
             name_length := cast(int) curr_ptr[0]
             name := strings.string_from_ptr(mem.ptr_offset(curr_ptr, 1), name_length)
@@ -154,6 +164,7 @@ read_tasks_fixed :: proc(filename: string, tasks: ^[dynamic][]Task, categories: 
             category_tasks[i] = Task{
                 name=name,
                 status=status,
+                today=today,
                 due_date=due_date,
             }
         }
@@ -195,6 +206,9 @@ save_tasks_dynamic :: proc(filename: string, tasks: [dynamic][dynamic]Task, cate
             // Write status
             os.write_byte(file, task.status)
 
+            // Write "today" status
+            os.write_byte(file, u8(task.today))
+
             // Write name
             os.write_byte(file, u8(len(task.name)))
             os.write_string(file, task.name)
@@ -232,6 +246,9 @@ save_tasks_fixed :: proc(filename: string, tasks: [dynamic][]Task, categories: [
             // Write status
             os.write_byte(file, task.status)
 
+            // Write "today" status
+            os.write_byte(file, u8(task.today))
+
             // Write name
             os.write_byte(file, u8(len(task.name)))
             os.write_string(file, task.name)
@@ -250,7 +267,7 @@ save_tasks :: proc{save_tasks_dynamic, save_tasks_fixed}
  */
 main :: proc() {
     // Check for CLI arguments
-    if len(os.args) > 2 {
+    if len(os.args) > 3 {
         fmt.eprintln("Too many arguments")
         os.exit(1)
     }
@@ -271,6 +288,86 @@ main :: proc() {
     categories := mem.buffer_from_slice(category_buffer[:])
 
     // Check for quick commands
+    if len(os.args) == 3 {
+        if os.args[1] == "set" && os.args[2] == "today" {
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
+            task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories, task_buffer[:])
+            defer delete(data)
+
+            // Display tasks
+            fmt.println("=== Task Manager ===")
+            task_index := 0
+            for category, i in categories {
+                fmt.printfln("--- %s ---", category)
+                for &task in tasks[i] {
+                    if task.due_date == "" {
+                        fmt.printfln("(%d) name: %s, status: %s", task_index, task.name, status_strings[task.status])
+                    } else {
+                        fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, task.name, status_strings[task.status], task.due_date)
+                    }
+                    task.today = false
+                    task_index += 1
+                }
+                fmt.println()
+            }
+
+            // Select tasks to add for today
+            indices_buffer: [MAX_TASK_SELECTION_SIZE]int = ---
+            indices := mem.buffer_from_slice(indices_buffer[:])
+            for {
+                // Get task index
+                fmt.print("Enter index: ")
+                if !bufio.scanner_scan(&scanner) {
+                    break
+                }
+                value := bufio.scanner_text(&scanner)
+
+                // Check for termination
+                if value == "done" {
+                    break
+                }
+
+                // Validate index value
+                selected_task_index, valid := strconv.parse_int(value)
+                if !valid || selected_task_index < 0 || selected_task_index >= task_index {
+                    fmt.eprintln("Invalid index")
+                    clear(&indices)
+                    break
+                }
+
+                // Validate uniqueness
+                insertion_index, found := slice.binary_search(indices[:], selected_task_index)
+                if found {
+                    fmt.eprintln("Duplicate index detected")
+                    clear(&indices)
+                    break
+                }
+
+                // Add task index for updating
+                inject_at(&indices, insertion_index, selected_task_index)
+            }
+
+            // If provided indices are valid start updating
+            if len(indices) > 0 {
+                for index in indices {
+                    task_buffer[index].today = true
+                }
+            }
+
+            // Update tasks
+            save_tasks(DATA_FILE, tasks, categories)
+        } else {
+            fmt.eprintln("Invalid command given")
+            os.exit(1)
+        }
+        os.exit(0)
+    }
+
     if len(os.args) == 2 {
         switch os.args[1] {
         case "add":
@@ -330,6 +427,7 @@ main :: proc() {
             task := Task{
                 name=name,
                 status=u8(0),
+                today=false,
                 due_date=due_date
             }
 
@@ -384,7 +482,7 @@ main :: proc() {
                 category_tasks := tasks[i]
                 start_index, j := -1, 0
                 for start_index == -1 && j < len(category_tasks) {
-                    if category_tasks[j].due_date == "Today" {
+                    if category_tasks[j].today {
                         start_index = j
                     }
                     j += 1
@@ -394,12 +492,20 @@ main :: proc() {
                 if start_index != -1 {
                     fmt.printfln("--- %s ---", category)
                     first_task := category_tasks[start_index]
-                    fmt.printfln("name: %s, status: %s", first_task.name, status_strings[first_task.status])
+                    if first_task.due_date == "" {
+                        fmt.printfln("name: %s, status: %s", first_task.name, status_strings[first_task.status])
+                    } else {
+                        fmt.printfln("name: %s, status: %s, due_date: %s", first_task.name, status_strings[first_task.status], first_task.due_date)
+                    }
 
                     for j in (start_index + 1)..<len(category_tasks) {
                         task := category_tasks[j]
-                        if task.due_date == "Today" {
-                            fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                        if task.today {
+                            if task.due_date == "" {
+                                fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                            } else {
+                                fmt.printfln("name: %s, status: %s, due_date: %s", task.name, status_strings[task.status], task.due_date)
+                            }
                         }
                     }
                     fmt.println()
@@ -542,7 +648,7 @@ main :: proc() {
                 category_tasks := tasks[i]
                 start_index, j := -1, 0
                 for start_index == -1 && j < len(category_tasks) {
-                    if category_tasks[j].due_date == "Today" {
+                    if category_tasks[j].today {
                         start_index = j
                     }
                     j += 1
@@ -552,12 +658,20 @@ main :: proc() {
                 if start_index != -1 {
                     fmt.printfln("--- %s ---", category)
                     first_task := category_tasks[start_index]
-                    fmt.printfln("name: %s, status: %s", first_task.name, status_strings[first_task.status])
+                    if first_task.due_date == "" {
+                        fmt.printfln("name: %s, status: %s", first_task.name, status_strings[first_task.status])
+                    } else {
+                        fmt.printfln("name: %s, status: %s, due_date: %s", first_task.name, status_strings[first_task.status], first_task.due_date)
+                    }
 
                     for j in (start_index + 1)..<len(category_tasks) {
                         task := category_tasks[j]
-                        if task.due_date == "Today" {
-                            fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                        if task.today {
+                            if task.due_date == "" {
+                                fmt.printfln("name: %s, status: %s", task.name, status_strings[task.status])
+                            } else {
+                                fmt.printfln("name: %s, status: %s, due_date: %s", task.name, status_strings[task.status], task.due_date)
+                            }
                         }
                     }
                     fmt.println()
@@ -607,6 +721,7 @@ main :: proc() {
             task := Task{
                 name=name,
                 status=u8(0),
+                today=false,
                 due_date=due_date
             }
 
@@ -698,6 +813,14 @@ main :: proc() {
                     successful_update = false
                 } else {
                     selected_task.status = encode_status(value)
+                    successful_update = true
+                }
+            case "today":
+                if value != "0" && value != "1" {
+                    fmt.eprintln("Invalid value. Supported values are 0 and 1.")
+                    successful_update = false
+                } else {
+                    selected_task.today = (value == "1")
                     successful_update = true
                 }
             case "category":
