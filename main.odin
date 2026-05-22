@@ -444,6 +444,78 @@ main :: proc() {
 
             // Save task
             save_tasks(DATA_FILE, tasks, categories)
+        case "addt":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][dynamic]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories)
+            defer {
+                for i in 0..<len(tasks) {
+                    delete(tasks[i])
+                }
+                delete(data)
+            }
+
+            // Get task fields from user input
+            fmt.print("Name: ")
+            if !bufio.scanner_scan(&scanner) {
+                os.exit(1)
+            }
+            name := bufio.scanner_text(&scanner)
+            if len(name) > MAX_FIELD_SIZE {
+                fmt.eprintln("Name cannot exceed 255 characters")
+                os.exit(1)
+            }
+
+            fmt.print("Category: ")
+            if !bufio.scanner_scan(&scanner) {
+                os.exit(1)
+            }
+            category := bufio.scanner_text(&scanner)
+            if len(category) > MAX_FIELD_SIZE {
+                fmt.eprintln("Category cannot exceed 255 characters")
+                os.exit(1)
+            }
+            index, found := slice.binary_search(categories[:], category)
+            if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
+                fmt.eprintln("A single category cannot store more than 120 tasks")
+                os.exit(1)
+            } else if !found && len(tasks) == MAX_NUM_CATEGORIES {
+                fmt.eprintln("Cannot have more than 50 categories")
+                os.exit(1)
+            }
+
+            fmt.print("Due Date: ")
+            if !bufio.scanner_scan(&scanner) {
+                os.exit(1)
+            }
+            due_date := bufio.scanner_text(&scanner)
+            if len(due_date) > MAX_FIELD_SIZE {
+                fmt.eprintln("Due date cannot exceed 255 characters")
+                os.exit(1)
+            }
+
+            // Create task
+            task := Task{
+                name=name,
+                status=u8(0),
+                today=true,
+                due_date=due_date
+            }
+
+            // Add task under its specified category
+            if found {
+                append(&tasks[index], task)
+            } else {
+                inject_at(&categories, index, category)
+                inject_at(&tasks, index, make([dynamic]Task, 1, 1))
+                tasks[index][0] = task
+            }
+
+            // Save task
+            save_tasks(DATA_FILE, tasks, categories)
         case "show":
             // Initialize stack-allocated buffers for storing task data
             tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
@@ -766,6 +838,64 @@ main :: proc() {
                 name=name,
                 status=u8(0),
                 today=false,
+                due_date=due_date
+            }
+
+            // Add task under its specified category
+            if found {
+                append(&tasks[index], task)
+            } else {
+                inject_at(&categories, index, category)
+                inject_at(&tasks, index, make([dynamic]Task, 1, 1))
+                tasks[index][0] = task
+            }
+
+            changed = true
+        case "addt":
+            // Get task fields from user input
+            fmt.print("Name: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            name := bufio.scanner_text(&scanner)
+            if len(name) > MAX_FIELD_SIZE {
+                fmt.eprintln("Name cannot exceed 255 characters")
+                break
+            }
+
+            fmt.print("Category: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            category := bufio.scanner_text(&scanner)
+            if len(category) > MAX_FIELD_SIZE {
+                fmt.eprintln("Category cannot exceed 255 characters")
+                break
+            }
+            index, found := slice.binary_search(categories[:], category)
+            if found && len(tasks[index]) == MAX_CATEGORY_SIZE {
+                fmt.eprintln("A single category cannot store more than 120 tasks")
+                break
+            } else if !found && len(categories) == MAX_NUM_CATEGORIES {
+                fmt.eprintln("Cannot have more than 50 categories")
+                break
+            }
+
+            fmt.print("Due Date: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            due_date := bufio.scanner_text(&scanner)
+            if len(due_date) > MAX_FIELD_SIZE {
+                fmt.eprintln("Due date cannot exceed 255 characters")
+                break
+            }
+
+            // Create task
+            task := Task{
+                name=name,
+                status=u8(0),
+                today=true,
                 due_date=due_date
             }
 

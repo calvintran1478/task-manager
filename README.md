@@ -28,13 +28,13 @@ You can now start the application by running
 ```bash
 tm
 ```
-This will start an interactive session where you can run commands. The supported list of commands are: `show`, `add`, `update`, `delete`, `queue`, `start`, `check`, `save`, `today` and `quit`. The supported list of bulk commands are: `delete many`.
+This will start an interactive session where you can run commands. The supported list of commands are: `show`, `add`, `addt`, `update`, `delete`, `queue`, `start`, `check`, `save`, `today` and `quit`. The supported list of bulk commands are: `delete many`.
 
 At this point you can freely delete the source file. To quickly display tasks without starting a session you can run
 ```bash
 tm show
 ```
-Similar quick commands are supported for `add`, `queue`, `start`, `check`, and `today`.
+Similar quick commands are supported for `add`, `addt`, `queue`, `start`, `check`, and `today`.
 
 ## Uninstalling
 
