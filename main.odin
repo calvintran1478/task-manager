@@ -780,6 +780,75 @@ main :: proc() {
                 task_buffer[selected_index].status = u8(3)
                 save_tasks(DATA_FILE, tasks, categories)
             }
+        case "checkt":
+            // Initialize stack-allocated buffers for storing task data
+            tasks_list_buffer: [MAX_NUM_CATEGORIES][]Task = ---
+            task_buffer: [MAX_TASK_SELECTION_SIZE]Task = ---
+            tasks := mem.buffer_from_slice(tasks_list_buffer[:])
+            today_task_buffer: [MAX_TASK_SELECTION_SIZE]^Task = ---
+
+            // Load task data from data file
+            data := read_tasks(DATA_FILE, &tasks, &categories, task_buffer[:])
+            defer delete(data)
+
+            // Display tasks
+            fmt.println("=== Task Manager ===")
+            task_index := 0
+            for category, i in categories {
+                // Check if category has at least one task today
+                category_tasks := tasks[i]
+                start_index, j := -1, 0
+                for start_index == -1 && j < len(category_tasks) {
+                    if category_tasks[j].today {
+                        start_index = j
+                    }
+                    j += 1
+                }
+
+                // Print category if at least one task was found
+                if start_index != -1 {
+                    fmt.printfln("--- %s ---", category)
+                    first_task := category_tasks[start_index]
+                    if first_task.due_date == "" {
+                        fmt.printfln("(%d) name: %s, status: %s", task_index, first_task.name, status_strings[first_task.status])
+                    } else {
+                        fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, first_task.name, status_strings[first_task.status], first_task.due_date)
+                    }
+                    today_task_buffer[task_index] = &(category_tasks[start_index])
+                    task_index += 1
+
+                    for j in (start_index + 1)..<len(category_tasks) {
+                        task := category_tasks[j]
+                        if task.today {
+                            if task.due_date == "" {
+                                fmt.printfln("(%d) name: %s, status: %s", task_index, task.name, status_strings[task.status])
+                            } else {
+                                fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, task.name, status_strings[task.status], task.due_date)
+                            }
+                            today_task_buffer[task_index] = &(category_tasks[j])
+                            task_index += 1
+                        }
+                    }
+                    fmt.println()
+                }
+            }
+
+            // Select task to update
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index < 0 || selected_index >= task_index {
+                fmt.eprintln("Invalid index")
+                break
+            }
+
+            // Update task
+            if today_task_buffer[selected_index].status != u8(3) {
+                today_task_buffer[selected_index].status = u8(3)
+                save_tasks(DATA_FILE, tasks, categories)
+            }
         case:
             fmt.eprintln("Invalid command given")
             os.exit(1)
@@ -1445,6 +1514,66 @@ main :: proc() {
             // Update task
             if selected_tasks[selected_index].status != u8(3) {
                 selected_tasks[selected_index].status = u8(3)
+                changed = true
+            }
+        case "checkt":
+            // Display tasks
+            fmt.println("=== Task Manager ===")
+            today_task_buffer: [MAX_TASK_SELECTION_SIZE]^Task = ---
+            task_index := 0
+            for category, i in categories {
+                // Check if category has at least one task today
+                category_tasks := tasks[i]
+                start_index, j := -1, 0
+                for start_index == -1 && j < len(category_tasks) {
+                    if category_tasks[j].today {
+                        start_index = j
+                    }
+                    j += 1
+                }
+
+                // Print category if at least one task was found
+                if start_index != -1 {
+                    fmt.printfln("--- %s ---", category)
+                    first_task := category_tasks[start_index]
+                    if first_task.due_date == "" {
+                        fmt.printfln("(%d) name: %s, status: %s", task_index, first_task.name, status_strings[first_task.status])
+                    } else {
+                        fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, first_task.name, status_strings[first_task.status], first_task.due_date)
+                    }
+                    today_task_buffer[task_index] = &(category_tasks[start_index])
+                    task_index += 1
+
+                    for j in (start_index + 1)..<len(category_tasks) {
+                        task := category_tasks[j]
+                        if task.today {
+                            if task.due_date == "" {
+                                fmt.printfln("(%d) name: %s, status: %s", task_index, task.name, status_strings[task.status])
+                            } else {
+                                fmt.printfln("(%d) name: %s, status: %s, due_date: %s", task_index, task.name, status_strings[task.status], task.due_date)
+                            }
+                            today_task_buffer[task_index] = &(category_tasks[j])
+                            task_index += 1
+                        }
+                    }
+                    fmt.println()
+                }
+            }
+
+            // Select task to update
+            fmt.print("Enter index: ")
+            if !bufio.scanner_scan(&scanner) {
+                break
+            }
+            selected_index, valid := strconv.parse_int(bufio.scanner_text(&scanner))
+            if !valid || selected_index < 0 || selected_index >= task_index {
+                fmt.eprintln("Invalid index")
+                break
+            }
+
+            // Update task
+            if today_task_buffer[selected_index].status != u8(3) {
+                today_task_buffer[selected_index].status = u8(3)
                 changed = true
             }
         case "save":
